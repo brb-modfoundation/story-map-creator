@@ -200,8 +200,16 @@ function initUploadPanel() {
 
 // ─── Layer Upload ─────────────────────────────────────────────────────────────
 
-function uid() {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+function idsFromFilename(filename) {
+    const base = (filename || 'file')
+        .replace(/\.[^.]+$/, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'file';
+    let candidate = `layer-${base}`;
+    let n = 1;
+    while (userLayers.some(l => l.id === candidate)) candidate = `layer-${base}-${n++}`;
+    return { layerId: candidate, sourceId: candidate.replace('layer-', 'source-') };
 }
 
 function detectCategory(data) {
@@ -243,9 +251,7 @@ function registerLayerInActiveChapter(layerId) {
 }
 
 function handleRasterUpload(file) {
-    const id = uid();
-    const layerId = `ul-${id}`;
-    const sourceId = `us-${id}`;
+    const { layerId, sourceId } = idsFromFilename(file.name);
     const name = file.name.replace(/\.[^.]+$/, '');
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -270,9 +276,7 @@ function handleRasterUpload(file) {
 }
 
 function handleGeoJsonUpload(file) {
-    const id = uid();
-    const layerId = `ul-${id}`;
-    const sourceId = `us-${id}`;
+    const { layerId, sourceId } = idsFromFilename(file.name);
     const name = file.name.replace(/\.[^.]+$/, '');
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -287,9 +291,7 @@ function handleGeoJsonUpload(file) {
 }
 
 function handleKmlUpload(file) {
-    const id = uid();
-    const layerId = `ul-${id}`;
-    const sourceId = `us-${id}`;
+    const { layerId, sourceId } = idsFromFilename(file.name);
     const name = file.name.replace(/\.[^.]+$/, '');
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1057,9 +1059,7 @@ window._editorAPI = {
     // Add a layer from a known URL (used by the core layers catalog)
     async addCatalogLayer(name, url, filename) {
         const ext = (filename || url).split('.').pop().toLowerCase();
-        const id = uid();
-        const layerId = `ul-${id}`;
-        const sourceId = `us-${id}`;
+        const { layerId, sourceId } = idsFromFilename(filename || name);
 
         if (ext === 'tif' || ext === 'tiff') {
             const entry = { id: layerId, sourceId, name, filename: filename || name, category: 'raster', remoteUrl: url };
