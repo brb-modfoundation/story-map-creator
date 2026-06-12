@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Map Editor</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wdth,wght@0,87.5,100;0,87.5,200;0,87.5,300;0,87.5,400;0,87.5,500;0,87.5,600;0,87.5,700;0,87.5,800;0,87.5,900;1,87.5,100;1,87.5,200;1,87.5,300;1,87.5,400;1,87.5,500;1,87.5,600;1,87.5,700;1,87.5,800;1,87.5,900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="editor.css">
+    <style>
+      .cloud-bar {
+        background: #1a2a3a;
+        color: #afc8e0;
+        padding: 0.45rem 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.82rem;
+        gap: 1rem;
+        flex-shrink: 0;
+      }
+      .cloud-bar-left { display: flex; align-items: center; gap: 0.75rem; }
+      .cloud-bar a { color: #7fb3d3; text-decoration: none; }
+      .cloud-bar a:hover { text-decoration: underline; }
+      .cloud-map-title {
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        max-width: 320px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .cloud-status { font-size: 0.78rem; color: #7fb3d3; }
+      .cloud-bar-right { display: flex; gap: 0.6rem; align-items: center; }
+      .btn-cloud-save {
+        background: #2ecc71;
+        color: white;
+        border: none;
+        padding: 0.35rem 0.9rem;
+        border-radius: 5px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.2s;
+      }
+      .btn-cloud-save:hover { background: #27ae60; }
+      .btn-cloud-save:disabled { background: #666; cursor: not-allowed; }
+      .btn-cloud-publish {
+        background: #9b59b6;
+        color: white;
+        border: none;
+        padding: 0.35rem 0.9rem;
+        border-radius: 5px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.2s;
+      }
+      .btn-cloud-publish:hover { background: #8e44ad; }
+      .btn-back-dash {
+        color: #7fb3d3;
+        font-size: 0.82rem;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .btn-back-dash:hover { color: white; }
+      .editor-container { height: 100vh; display: flex; flex-direction: column; }
+      .editor-container > .editor-header { flex-shrink: 0; }
+    </style>
+</head>
+<body>
+    <!-- Cloud bar — shown when editing a saved map -->
+    <div class="cloud-bar" id="cloud-bar" style="display:none">
+      <div class="cloud-bar-left">
+        <a class="btn-back-dash" href="dashboard.html">← My Maps</a>
+        <span style="color:#4a6a80">|</span>
+        <span class="cloud-map-title" id="cloud-map-title">Untitled Map</span>
+        <span class="cloud-status" id="cloud-status"></span>
+      </div>
+      <div class="cloud-bar-right">
+        <button class="btn-cloud-save" id="cloud-save-btn" onclick="cloudSave()">☁ Save</button>
+        <button class="btn-cloud-publish" id="cloud-publish-btn" onclick="cloudTogglePublish()">Publish</button>
+      </div>
+    </div>
+
+    <div class="editor-container">
+        <!-- Header -->
+        <header class="editor-header">
+            <h1>Story Map Editor</h1>
+            <div class="header-actions">
+                <button id="save-all-btn" class="btn btn-success">Save All Changes</button>
+                <button id="export-btn" class="btn btn-primary">Export Configuration</button>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <div class="editor-main">
+            <!-- Sidebar -->
+            <aside class="chapters-sidebar">
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" data-tab="chapters">Chapters</button>
+                    <button class="sidebar-tab" data-tab="layers">Layers</button>
+                </div>
+
+                <!-- Chapters panel -->
+                <div class="sidebar-tab-content" data-panel="chapters">
+                    <div class="sidebar-panel-header">
+                        <button id="add-chapter-btn" class="btn btn-small btn-primary">+ Add Chapter</button>
+                    </div>
+                    <div id="chapters-list" class="chapters-list"></div>
+                </div>
+
+                <!-- Layers panel -->
+                <div class="sidebar-tab-content" data-panel="layers" style="display:none">
+                    <div class="layers-panel">
+                        <div class="layers-panel-toolbar">
+                            <label class="upload-btn-label">
+                                + Add Layer
+                                <input type="file" id="layer-file-input" accept=".geojson,.json,.kml,.tif,.tiff" hidden multiple>
+                            </label>
+                            <span class="layers-drop-hint">or drop onto map</span>
+                        </div>
+                        <div id="layer-list" class="layer-list"></div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center - Map Preview -->
+            <div class="map-preview-container" id="map-preview-container">
+                <!-- Basemap selector -->
+                <div class="basemap-bar">
+                    <span class="basemap-bar-label">Basemap:</span>
+                    <label class="basemap-option">
+                        <input type="radio" name="basemap" value="satellite" checked>
+                        <span>Satellite</span>
+                    </label>
+                    <label class="basemap-option">
+                        <input type="radio" name="basemap" value="carto-positron">
+                        <span>Carto Light</span>
+                    </label>
+                    <label class="basemap-option">
+                        <input type="radio" name="basemap" value="carto-dark">
+                        <span>Carto Dark</span>
+                    </label>
+                    <label class="basemap-option">
+                        <input type="radio" name="basemap" value="osm">
+                        <span>OpenStreetMap</span>
+                    </label>
+                </div>
+
+                <div id="editor-map" class="editor-map"></div>
+                <div id="map-drop-overlay" class="map-drop-overlay" style="display:none">Drop file to add layer</div>
+
+                <!-- Viewport overlays -->
+                <div id="viewport-overlay-desktop" class="viewport-overlay" style="display:none">
+                    <div class="viewport-label">Desktop: 1500 x 864</div>
+                </div>
+                <div id="viewport-overlay-ipad" class="viewport-overlay" style="display:none">
+                    <div class="viewport-label">iPad Landscape: 1024 x 768</div>
+                </div>
+                <div id="viewport-overlay-ipad-portrait" class="viewport-overlay" style="display:none">
+                    <div class="viewport-label">iPad Portrait: 768 x 1024</div>
+                </div>
+                <div id="viewport-overlay-mobile" class="viewport-overlay" style="display:none">
+                    <div class="viewport-label">iPhone: 390 x 844</div>
+                </div>
+
+                <div class="map-controls">
+                    <button id="capture-view-btn" class="btn btn-primary">Capture Current View</button>
+                    <div class="view-info">
+                        <span>Zoom: <span id="current-zoom">2</span></span>
+                        <span>Pitch: <span id="current-pitch">0</span>°</span>
+                        <span>Bearing: <span id="current-bearing">0</span>°</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Chapter Editor -->
+            <div class="chapter-editor">
+                <div id="no-chapter-selected" class="placeholder">
+                    <p>Select a chapter to edit or create a new one</p>
+                </div>
+                <div id="chapter-form" class="chapter-form" style="display:none">
+                    <h3>Edit Chapter</h3>
+
+                    <!-- Chapter Info -->
+                    <div class="editor-section">
+                        <div class="editor-section-header">
+                            <span>Chapter Info</span>
+                            <span class="editor-section-arrow">▼</span>
+                        </div>
+                        <div class="editor-section-content">
+                            <div class="form-group">
+                                <label for="chapter-id">Chapter ID</label>
+                                <input type="text" id="chapter-id" placeholder="e.g., intro" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-title">Title</label>
+                                <input type="text" id="chapter-title" placeholder="Chapter title" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-description">Description</label>
+                                <textarea id="chapter-description" rows="4" placeholder="Chapter description"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-quote">Quote (optional)</label>
+                                <textarea id="chapter-quote" rows="3" placeholder="Quote text"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-subtitle1">Subtitle 1 (optional)</label>
+                                <input type="text" id="chapter-subtitle1" placeholder="First subtitle line">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-subtitle2">Subtitle 2 (optional)</label>
+                                <input type="text" id="chapter-subtitle2" placeholder="Second subtitle line">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-year">Year (for timeline)</label>
+                                <input type="text" id="chapter-year" placeholder="e.g., 1854">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-population">Population (optional)</label>
+                                <input type="text" id="chapter-population" placeholder="e.g., 50,000">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-image">Image URL (optional)</label>
+                                <input type="text" id="chapter-image" placeholder="https://example.com/image.jpg">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-image-caption">Image Caption (optional)</label>
+                                <input type="text" id="chapter-image-caption" placeholder="Caption for the image">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-description-source">Description Source (optional)</label>
+                                <input type="text" id="chapter-description-source" placeholder="Source for the description">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-quote-source">Quote Source (optional)</label>
+                                <input type="text" id="chapter-quote-source" placeholder="Source for the quote">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-alignment">Content Position</label>
+                                <select id="chapter-alignment">
+                                    <option value="center">Center</option>
+                                    <option value="left">Left</option>
+                                    <option value="right">Right</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-button-text">Button Text (optional)</label>
+                                <input type="text" id="chapter-button-text" placeholder="e.g., Explore More">
+                            </div>
+                            <div class="form-group">
+                                <label for="chapter-button-url">Button URL (optional)</label>
+                                <input type="text" id="chapter-button-url" placeholder="https://example.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Map View -->
+                    <div class="editor-section">
+                        <div class="editor-section-header">
+                            <span>Map View</span>
+                            <span class="editor-section-arrow">▼</span>
+                        </div>
+                        <div class="editor-section-content">
+                            <div class="form-group">
+                                <label for="view-type">View Type</label>
+                                <select id="view-type">
+                                    <option value="center-zoom">Center & Zoom</option>
+                                    <option value="bounds">Bounding Box (Responsive)</option>
+                                </select>
+                            </div>
+
+                            <div id="center-zoom-inputs">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="chapter-center-lng">Longitude</label>
+                                        <input type="number" id="chapter-center-lng" step="0.0001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="chapter-center-lat">Latitude</label>
+                                        <input type="number" id="chapter-center-lat" step="0.0001">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="chapter-zoom">Zoom</label>
+                                        <input type="number" id="chapter-zoom" step="0.1" min="0" max="22">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="bounds-inputs" style="display:none">
+                                <h4 style="margin:1rem 0 0.5rem;color:#333;font-size:0.95rem">Desktop Bounds</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-sw-lng">SW Longitude</label>
+                                        <input type="number" id="bounds-sw-lng" step="0.0001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-sw-lat">SW Latitude</label>
+                                        <input type="number" id="bounds-sw-lat" step="0.0001">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-ne-lng">NE Longitude</label>
+                                        <input type="number" id="bounds-ne-lng" step="0.0001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-ne-lat">NE Latitude</label>
+                                        <input type="number" id="bounds-ne-lat" step="0.0001">
+                                    </div>
+                                </div>
+                                <button type="button" id="get-bounds-button" class="secondary-button">Get Current Bounds (Desktop)</button>
+
+                                <h4 style="margin:1.5rem 0 0.5rem;color:#333;font-size:0.95rem">iPad Bounds (Optional)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-sw-lng">SW Longitude</label>
+                                        <input type="number" id="bounds-ipad-sw-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-sw-lat">SW Latitude</label>
+                                        <input type="number" id="bounds-ipad-sw-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-ne-lng">NE Longitude</label>
+                                        <input type="number" id="bounds-ipad-ne-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-ne-lat">NE Latitude</label>
+                                        <input type="number" id="bounds-ipad-ne-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                </div>
+                                <button type="button" id="get-bounds-ipad-button" class="secondary-button">Get Current Bounds (iPad Landscape)</button>
+
+                                <h4 style="margin:1.5rem 0 0.5rem;color:#333;font-size:0.95rem">iPad Portrait Bounds (Optional)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-portrait-sw-lng">SW Longitude</label>
+                                        <input type="number" id="bounds-ipad-portrait-sw-lng" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-portrait-sw-lat">SW Latitude</label>
+                                        <input type="number" id="bounds-ipad-portrait-sw-lat" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-portrait-ne-lng">NE Longitude</label>
+                                        <input type="number" id="bounds-ipad-portrait-ne-lng" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-ipad-portrait-ne-lat">NE Latitude</label>
+                                        <input type="number" id="bounds-ipad-portrait-ne-lat" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                    </div>
+                                </div>
+                                <button type="button" id="get-bounds-ipad-portrait-button" class="secondary-button">Get Current Bounds (iPad Portrait)</button>
+
+                                <h4 style="margin:1.5rem 0 0.5rem;color:#333;font-size:0.95rem">iPhone Bounds (Optional)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-mobile-sw-lng">SW Longitude</label>
+                                        <input type="number" id="bounds-mobile-sw-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-mobile-sw-lat">SW Latitude</label>
+                                        <input type="number" id="bounds-mobile-sw-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="bounds-mobile-ne-lng">NE Longitude</label>
+                                        <input type="number" id="bounds-mobile-ne-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bounds-mobile-ne-lat">NE Latitude</label>
+                                        <input type="number" id="bounds-mobile-ne-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                    </div>
+                                </div>
+                                <button type="button" id="get-bounds-mobile-button" class="secondary-button">Get Current Bounds (iPhone)</button>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="chapter-pitch">Pitch</label>
+                                    <input type="number" id="chapter-pitch" step="1" min="0" max="60" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="chapter-bearing">Bearing</label>
+                                    <input type="number" id="chapter-bearing" step="1" min="-180" max="180" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="chapter-duration">Duration (ms)</label>
+                                    <input type="number" id="chapter-duration" step="100" min="500" max="10000" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chapter Layers -->
+                    <div class="editor-section">
+                        <div class="editor-section-header">
+                            <span>Chapter Layers</span>
+                            <span class="editor-section-arrow">▼</span>
+                        </div>
+                        <div class="editor-section-content">
+                            <div id="layer-toggles" class="layer-toggles"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="save-chapter-btn" class="btn btn-primary">Save Chapter</button>
+                        <button id="delete-chapter-btn" class="btn btn-danger">Delete Chapter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="modal">
+        <div class="modal-content modal-content-wide">
+            <div class="modal-header">
+                <h2>Export Configuration</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body modal-body-two-col">
+
+                <div class="export-section">
+                    <h3 class="export-section-title">storyConfig.js</h3>
+                    <p class="export-section-desc">Story chapters — paste into <code>storyConfig.js</code> in your story map folder</p>
+                    <textarea id="export-story-output" readonly></textarea>
+                    <div class="export-section-actions">
+                        <button id="copy-story-btn" class="btn btn-secondary">Copy</button>
+                        <button id="download-story-btn" class="btn btn-primary">Download storyConfig.js</button>
+                    </div>
+                </div>
+
+                <div class="export-section">
+                    <h3 class="export-section-title">mapConfig.js</h3>
+                    <p class="export-section-desc">Basemap + layer definitions — paste into <code>mapConfig.js</code>. Update raster paths before deploying.</p>
+                    <textarea id="export-map-output" readonly></textarea>
+                    <div class="export-section-actions">
+                        <button id="copy-map-btn" class="btn btn-secondary">Copy</button>
+                        <button id="download-map-btn" class="btn btn-primary">Download mapConfig.js</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.5.0/dist/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.min.js"></script>
+    <script src="mapConfig.js"></script>
+    <script src="storyConfig.js"></script>
+    <script src="editor.js"></script>
+    <script type="module" src="editor-cloud.js"></script>
+</body>
+</html>

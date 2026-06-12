@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Maps — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #f0f2f5;
+      color: #2c3e50;
+      min-height: 100vh;
+    }
+
+    /* ── Auth Screen ────────────────────────────────── */
+    #auth-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1a2a3a 0%, #2c3e50 60%, #1a3a4a 100%);
+    }
+
+    .auth-card {
+      background: white;
+      border-radius: 16px;
+      padding: 3rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .auth-logo {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .auth-card h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #2c3e50;
+      margin-bottom: 0.3rem;
+    }
+
+    .auth-card p {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 0.6rem;
+      border: none;
+      background: white;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #888;
+      transition: all 0.2s;
+    }
+
+    .auth-tab.active {
+      background: #2c3e50;
+      color: white;
+    }
+
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 0.4rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #2196f3;
+    }
+
+    .btn-auth {
+      width: 100%;
+      padding: 0.9rem;
+      background: #2c3e50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 0.5rem;
+    }
+
+    .btn-auth:hover { background: #34495e; }
+    .btn-auth:disabled { background: #aaa; cursor: not-allowed; }
+
+    .auth-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.2rem 0;
+      color: #ccc;
+      font-size: 0.85rem;
+    }
+
+    .auth-divider::before,
+    .auth-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #eee;
+    }
+
+    .btn-google {
+      width: 100%;
+      padding: 0.8rem;
+      background: white;
+      color: #333;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-google:hover {
+      border-color: #bbb;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .auth-message {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: none;
+    }
+
+    .auth-message.error { background: #fdecea; color: #c62828; display: block; }
+    .auth-message.success { background: #e8f5e9; color: #2e7d32; display: block; }
+
+    /* ── Dashboard Screen ───────────────────────────── */
+    #dashboard-screen { display: none; min-height: 100vh; }
+
+    .dash-header {
+      background: #2c3e50;
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .dash-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .dash-header h1 {
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .dash-header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .user-badge {
+      background: rgba(255,255,255,0.15);
+      padding: 0.4rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
+
+    .btn-signout {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white;
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+
+    .btn-signout:hover { background: rgba(255,255,255,0.1); }
+
+    .dash-body {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
+    }
+
+    .dash-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+
+    .dash-toolbar h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+    }
+
+    .btn-new {
+      background: #2c3e50;
+      color: white;
+      border: none;
+      padding: 0.7rem 1.4rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.2s;
+    }
+
+    .btn-new:hover { background: #34495e; }
+
+    /* Maps grid */
+    .maps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .map-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+
+    .map-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .map-card-thumb {
+      height: 150px;
+      background: linear-gradient(135deg, #1a3a5c, #2c6e9e);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .map-card-body {
+      padding: 1.2rem;
+    }
+
+    .map-card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 0.3rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .map-card-meta {
+      font-size: 0.78rem;
+      color: #999;
+      margin-bottom: 1rem;
+    }
+
+    .map-card-footer {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .badge-published {
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+    }
+
+    .badge-draft {
+      background: #fff8e1;
+      color: #f57f17;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+    }
+
+    .btn-card {
+      padding: 0.35rem 0.8rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.8rem;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-card:hover { opacity: 0.85; }
+    .btn-edit { background: #e3f2fd; color: #1565c0; }
+    .btn-publish { background: #e8f5e9; color: #2e7d32; }
+    .btn-unpublish { background: #fff3e0; color: #e65100; }
+    .btn-view { background: #f3e5f5; color: #6a1b9a; }
+    .btn-delete { background: #fdecea; color: #c62828; }
+
+    /* Empty state */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 5rem 2rem;
+      color: #bbb;
+    }
+
+    .empty-state .empty-icon { font-size: 4rem; margin-bottom: 1rem; }
+    .empty-state p { font-size: 1.1rem; margin-bottom: 1.5rem; }
+
+    /* New Map Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal-box {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .modal-box h3 {
+      font-size: 1.2rem;
+      margin-bottom: 1.5rem;
+      color: #2c3e50;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      margin-top: 1.5rem;
+    }
+
+    .btn-cancel {
+      padding: 0.7rem 1.2rem;
+      background: #f5f5f5;
+      color: #555;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .btn-create {
+      padding: 0.7rem 1.4rem;
+      background: #2c3e50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-create:hover { background: #34495e; }
+
+    /* Loading spinner */
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #eee;
+      border-top-color: #2c3e50;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 4rem auto;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #2c3e50;
+      color: white;
+      padding: 0.9rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      z-index: 9999;
+      transform: translateY(0);
+      animation: slideUp 0.3s ease;
+    }
+
+    .toast.error { background: #c62828; }
+
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Auth Screen ─────────────────────────────────────── -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">🗺️</div>
+    <h1>Story Maps</h1>
+    <p>Create and publish interactive story maps</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-signin" onclick="switchAuthTab('signin')">Sign In</button>
+      <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Sign Up</button>
+    </div>
+
+    <div id="signin-form">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="signin-email" placeholder="you@example.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="signin-password" placeholder="••••••••">
+      </div>
+      <button class="btn-auth" id="signin-btn" onclick="handleSignIn()">Sign In</button>
+    </div>
+
+    <div id="signup-form" style="display:none">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="signup-email" placeholder="you@example.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="signup-password" placeholder="At least 6 characters">
+      </div>
+      <button class="btn-auth" id="signup-btn" onclick="handleSignUp()">Create Account</button>
+    </div>
+
+    <div class="auth-divider">or</div>
+    <button class="btn-google" onclick="handleGoogleSignIn()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continue with Google
+    </button>
+
+    <div class="auth-message" id="auth-message"></div>
+  </div>
+</div>
+
+<!-- ── Dashboard Screen ────────────────────────────────── -->
+<div id="dashboard-screen">
+  <header class="dash-header">
+    <div class="dash-header-left">
+      <span style="font-size:1.5rem">🗺️</span>
+      <h1>Story Maps</h1>
+    </div>
+    <div class="dash-header-right">
+      <span class="user-badge" id="user-email-badge"></span>
+      <button class="btn-signout" onclick="handleSignOut()">Sign Out</button>
+    </div>
+  </header>
+
+  <div class="dash-body">
+    <div class="dash-toolbar">
+      <h2>My Maps</h2>
+      <button class="btn-new" onclick="openNewMapModal()">
+        <span>＋</span> New Map
+      </button>
+    </div>
+
+    <div class="maps-grid" id="maps-grid">
+      <div class="spinner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Map Modal ───────────────────────────────────── -->
+<div class="modal-overlay" id="new-map-modal">
+  <div class="modal-box">
+    <h3>Create New Story Map</h3>
+    <div class="form-group">
+      <label>Map Title</label>
+      <input type="text" id="new-map-title" placeholder="e.g. Bengaluru Stormwater Story">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeNewMapModal()">Cancel</button>
+      <button class="btn-create" onclick="createNewMap()">Create & Open Editor</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { supabase, slugify } from './supabase.js';
+
+  // ── Auth state ──────────────────────────────────────────
+  let currentUser = null;
+
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      currentUser = session.user;
+      showDashboard();
+    } else {
+      currentUser = null;
+      showAuth();
+    }
+  });
+
+  // ── Auth tab switching ──────────────────────────────────
+  window.switchAuthTab = (tab) => {
+    document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+    document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+    document.getElementById('signin-form').style.display = tab === 'signin' ? 'block' : 'none';
+    document.getElementById('signup-form').style.display = tab === 'signup' ? 'block' : 'none';
+    clearAuthMessage();
+  };
+
+  // ── Sign In ─────────────────────────────────────────────
+  window.handleSignIn = async () => {
+    const email = document.getElementById('signin-email').value.trim();
+    const password = document.getElementById('signin-password').value;
+    if (!email || !password) return showAuthMessage('Please fill in both fields.', 'error');
+    const btn = document.getElementById('signin-btn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { showAuthMessage(error.message, 'error'); btn.disabled = false; btn.textContent = 'Sign In'; }
+  };
+
+  // ── Sign Up ─────────────────────────────────────────────
+  window.handleSignUp = async () => {
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value;
+    if (!email || !password) return showAuthMessage('Please fill in both fields.', 'error');
+    if (password.length < 6) return showAuthMessage('Password must be at least 6 characters.', 'error');
+    const btn = document.getElementById('signup-btn');
+    btn.disabled = true; btn.textContent = 'Creating account…';
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) { showAuthMessage(error.message, 'error'); btn.disabled = false; btn.textContent = 'Create Account'; }
+    else showAuthMessage('Account created! Check your email to confirm, then sign in.', 'success');
+  };
+
+  // ── Google Sign In ──────────────────────────────────────
+  window.handleGoogleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.href }
+    });
+    if (error) showAuthMessage(error.message, 'error');
+  };
+
+  // ── Sign Out ────────────────────────────────────────────
+  window.handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // ── Screen switching ────────────────────────────────────
+  function showAuth() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('dashboard-screen').style.display = 'none';
+  }
+
+  async function showDashboard() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('dashboard-screen').style.display = 'block';
+    document.getElementById('user-email-badge').textContent = currentUser.email;
+    await loadMaps();
+  }
+
+  // ── Load maps ───────────────────────────────────────────
+  async function loadMaps() {
+    const grid = document.getElementById('maps-grid');
+    grid.innerHTML = '<div class="spinner"></div>';
+
+    const { data: maps, error } = await supabase
+      .from('story_maps')
+      .select('id, title, slug, published, created_at, updated_at')
+      .eq('user_id', currentUser.id)
+      .order('updated_at', { ascending: false });
+
+    if (error) { grid.innerHTML = '<p style="color:red">Error loading maps: ' + error.message + '</p>'; return; }
+
+    if (!maps.length) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🗺️</div>
+          <p>You haven't created any story maps yet.</p>
+          <button class="btn-new" onclick="openNewMapModal()">＋ Create your first map</button>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = '';
+    maps.forEach(map => grid.appendChild(buildMapCard(map)));
+  }
+
+  function buildMapCard(map) {
+    const card = document.createElement('div');
+    card.className = 'map-card';
+
+    const updated = new Date(map.updated_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    card.innerHTML = `
+      <div class="map-card-thumb">🗺️</div>
+      <div class="map-card-body">
+        <div class="map-card-title" title="${map.title}">${map.title}</div>
+        <div class="map-card-meta">Updated ${updated}</div>
+        <div class="map-card-footer">
+          <span class="${map.published ? 'badge-published' : 'badge-draft'}">${map.published ? '● Published' : '○ Draft'}</span>
+          <button class="btn-card btn-edit" onclick="openEditor('${map.id}')">Edit</button>
+          ${map.published
+            ? `<button class="btn-card btn-view" onclick="viewMap('${map.slug}')">View</button>
+               <button class="btn-card btn-unpublish" onclick="togglePublish('${map.id}', false, this)">Unpublish</button>`
+            : `<button class="btn-card btn-publish" onclick="togglePublish('${map.id}', true, this)">Publish</button>`}
+          <button class="btn-card btn-delete" onclick="deleteMap('${map.id}', this)">Delete</button>
+        </div>
+      </div>`;
+    return card;
+  }
+
+  // ── Map actions ─────────────────────────────────────────
+  window.openEditor = (mapId) => {
+    window.location.href = `editor.html?mapId=${mapId}`;
+  };
+
+  window.viewMap = (slug) => {
+    window.open(`view.html?id=${slug}`, '_blank');
+  };
+
+  window.togglePublish = async (mapId, publish, btn) => {
+    btn.disabled = true;
+    const { error } = await supabase
+      .from('story_maps')
+      .update({ published: publish, updated_at: new Date().toISOString() })
+      .eq('id', mapId);
+    if (error) { toast(error.message, true); btn.disabled = false; }
+    else { toast(publish ? 'Map published!' : 'Map unpublished.'); await loadMaps(); }
+  };
+
+  window.deleteMap = async (mapId, btn) => {
+    if (!confirm('Delete this map permanently?')) return;
+    btn.disabled = true;
+    const { error } = await supabase.from('story_maps').delete().eq('id', mapId);
+    if (error) { toast(error.message, true); btn.disabled = false; }
+    else { toast('Map deleted.'); await loadMaps(); }
+  };
+
+  // ── New map modal ───────────────────────────────────────
+  window.openNewMapModal = () => {
+    document.getElementById('new-map-modal').classList.add('active');
+    setTimeout(() => document.getElementById('new-map-title').focus(), 100);
+  };
+
+  window.closeNewMapModal = () => {
+    document.getElementById('new-map-modal').classList.remove('active');
+    document.getElementById('new-map-title').value = '';
+  };
+
+  window.createNewMap = async () => {
+    const title = document.getElementById('new-map-title').value.trim();
+    if (!title) return;
+
+    const baseSlug = slugify(title);
+    const slug = `${baseSlug}-${Date.now().toString(36)}`;
+
+    const { data, error } = await supabase
+      .from('story_maps')
+      .insert({
+        user_id: currentUser.id,
+        title,
+        slug,
+        story_config: { chapters: [] },
+        map_config: {
+          initialView: { center: [0, 20], zoom: 2 },
+          defaultBasemap: 'satellite',
+          basemaps: {
+            'satellite': { tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'], attribution: '© Google' },
+            'carto-positron': { tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'], attribution: '© Carto, © OpenStreetMap contributors' },
+            'carto-dark': { tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'], attribution: '© Carto, © OpenStreetMap contributors' },
+            'osm': { tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], attribution: '© OpenStreetMap contributors' }
+          },
+          sources: {},
+          layers: []
+        },
+        published: false
+      })
+      .select('id')
+      .single();
+
+    if (error) { toast(error.message, true); return; }
+    window.location.href = `editor.html?mapId=${data.id}`;
+  };
+
+  // Allow Enter key in new map modal
+  document.getElementById('new-map-title').addEventListener('keydown', e => {
+    if (e.key === 'Enter') window.createNewMap();
+  });
+
+  // Close modal on overlay click
+  document.getElementById('new-map-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('new-map-modal')) closeNewMapModal();
+  });
+
+  // ── Auth helpers ────────────────────────────────────────
+  function showAuthMessage(msg, type) {
+    const el = document.getElementById('auth-message');
+    el.textContent = msg;
+    el.className = 'auth-message ' + type;
+  }
+
+  function clearAuthMessage() {
+    const el = document.getElementById('auth-message');
+    el.className = 'auth-message';
+    el.textContent = '';
+  }
+
+  // ── Toast ───────────────────────────────────────────────
+  window.toast = (msg, isError = false) => {
+    const el = document.createElement('div');
+    el.className = 'toast' + (isError ? ' error' : '');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  };
+</script>
+
+</body>
+</html>
