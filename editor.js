@@ -334,7 +334,7 @@ function addVectorEntry(layerId, sourceId, name, filename, data) {
 }
 
 function withMap(fn) {
-    if (editorMap.loaded()) fn();
+    if (editorMap.isStyleLoaded()) fn();
     else editorMap.once('load', fn);
 }
 
