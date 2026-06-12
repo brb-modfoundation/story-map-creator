@@ -998,6 +998,37 @@ window._editorAPI = {
         renderChaptersList();
     },
 
+    // Collapse expanded polygon layer IDs (ul-xxx-fill / ul-xxx-outline) back to
+    // base IDs so the editor's selectChapter / populateLayerToggles work correctly.
+    // Must be called after restoreLayers so userLayers is populated.
+    normalizeChapterLayers() {
+        chapters = chapters.map(ch => {
+            if (!ch.layers) return ch;
+            const collapsed = {};
+            Object.entries(ch.layers).forEach(([id, state]) => {
+                if (id.endsWith('-fill')) {
+                    const base = id.slice(0, -5);
+                    if (userLayers.some(l => l.id === base && l.category === 'polygon')) {
+                        collapsed[base] = collapsed[base]
+                            ? { ...collapsed[base], visible: state.visible, opacity: state.opacity, color: state.color }
+                            : { ...state };
+                        return;
+                    }
+                } else if (id.endsWith('-outline')) {
+                    const base = id.slice(0, -8);
+                    if (userLayers.some(l => l.id === base && l.category === 'polygon')) {
+                        if (!collapsed[base]) collapsed[base] = {};
+                        if (state.strokeWidth != null) collapsed[base].strokeWidth = state.strokeWidth;
+                        return;
+                    }
+                }
+                collapsed[id] = state;
+            });
+            return { ...ch, layers: collapsed };
+        });
+        renderChaptersList();
+    },
+
     // Restore layers from saved metadata (cloud-stored layers only)
     async restoreLayers(metaList) {
         for (const meta of (metaList || [])) {

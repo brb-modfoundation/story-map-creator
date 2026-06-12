@@ -7,7 +7,9 @@ const params = new URLSearchParams(window.location.search);
 const MAP_ID = params.get('mapId');
 
 // MOD Foundation core data folder (GitHub Pages — served with open CORS)
-const CORE_DATA_API = 'https://api.github.com/repos/mod-foundation/mod-foundation.github.io/contents/download_center/data';
+// Uses the git trees API (recursive) because files live in subfolders: json/, geotiff/
+const CORE_TREE_API = 'https://api.github.com/repos/mod-foundation/mod-foundation.github.io/git/trees/main?recursive=1';
+const CORE_DATA_PREFIX = 'download_center/data/';
 const CORE_DATA_BASE = 'https://mod-foundation.github.io/download_center/data/';
 
 let currentMap = null;
@@ -72,6 +74,9 @@ window._cloudUploadDataset = async (file) => {
   if (data.map_config?.userLayersMeta?.length && window._editorAPI) {
     setStatus('Restoring layers…');
     await window._editorAPI.restoreLayers(data.map_config.userLayersMeta);
+    // Collapse expanded polygon IDs (ul-xxx-fill/outline → ul-xxx) so the
+    // editor's selectChapter and layer toggles can find them by base ID.
+    window._editorAPI.normalizeChapterLayers?.();
   }
 
   setStatus('Loaded ✓');
@@ -197,13 +202,27 @@ async function toggleCatalogPanel() {
   panel.innerHTML = '<span style="font-size:0.8rem;color:#999">Loading catalog…</span>';
 
   try {
-    const resp = await fetch(CORE_DATA_API);
+    const resp = await fetch(CORE_TREE_API);
     if (!resp.ok) throw new Error(`GitHub API: HTTP ${resp.status}`);
-    const items = await resp.json();
+    const tree = await resp.json();
 
-    const supported = items.filter(it =>
-      it.type === 'file' && /\.(geojson|json|kml|tif|tiff)$/i.test(it.name)
-    );
+    const supported = (tree.tree || []).filter(it => {
+      if (it.type !== 'blob') return false;
+      if (!it.path.startsWith(CORE_DATA_PREFIX)) return false;
+      const rel = it.path.slice(CORE_DATA_PREFIX.length);
+      // Skip duplicate/archive folders and junk files
+      if (/(^|\/)(copy|Archive)\//i.test(rel)) return false;
+      if (/thumbs\.db$/i.test(rel)) return false;
+      return /\.(geojson|json|kml|tif|tiff)$/i.test(rel);
+    }).map(it => {
+      const rel = it.path.slice(CORE_DATA_PREFIX.length);
+      return {
+        rel,
+        name: rel.split('/').pop(),
+        folder: rel.includes('/') ? rel.split('/')[0] : '',
+        size: it.size || 0,
+      };
+    }).sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
 
     if (!supported.length) {
       panel.innerHTML = '<span style="font-size:0.8rem;color:#999">No supported files found in the core data folder.</span>';
@@ -211,18 +230,27 @@ async function toggleCatalogPanel() {
     }
 
     panel.innerHTML = '';
+    let lastFolder = null;
     supported.forEach(it => {
+      if (it.folder !== lastFolder) {
+        lastFolder = it.folder;
+        const hdr = document.createElement('div');
+        hdr.textContent = it.folder === 'geotiff' ? '🗻 ' + it.folder : '📁 ' + (it.folder || 'data');
+        hdr.style.cssText = 'font-size:0.7rem;font-weight:700;color:#557;text-transform:uppercase;letter-spacing:0.05em;margin-top:0.3rem;padding:0 0.2rem';
+        panel.appendChild(hdr);
+      }
+
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.4rem;background:white;border-radius:4px;border:1px solid #e8eef8';
 
-      const sizeKb = (it.size / 1024).toFixed(0);
+      const sizeKb = it.size / 1024;
       const nameEl = document.createElement('span');
       nameEl.textContent = it.name;
-      nameEl.title = `${it.name} (${sizeKb} KB)`;
+      nameEl.title = it.rel;
       nameEl.style.cssText = 'flex:1;font-size:0.78rem;color:#2c3e50;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0';
 
       const sizeEl = document.createElement('span');
-      sizeEl.textContent = sizeKb > 1024 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb + ' KB';
+      sizeEl.textContent = sizeKb > 1024 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb.toFixed(0) + ' KB';
       sizeEl.style.cssText = 'font-size:0.68rem;color:#999;flex-shrink:0';
 
       const addBtn = document.createElement('button');
@@ -231,7 +259,7 @@ async function toggleCatalogPanel() {
       addBtn.style.cssText = 'padding:0.15rem 0.5rem;border:none;background:#2196f3;color:white;border-radius:4px;font-size:0.72rem;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0';
       addBtn.addEventListener('click', () => {
         const displayName = it.name.replace(/\.[^.]+$/, '');
-        window._editorAPI?.addCatalogLayer(displayName, CORE_DATA_BASE + it.name, it.name);
+        window._editorAPI?.addCatalogLayer(displayName, CORE_DATA_BASE + it.rel, it.name);
       });
 
       row.append(nameEl, sizeEl, addBtn);
