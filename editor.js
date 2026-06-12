@@ -257,6 +257,14 @@ function handleRasterUpload(file) {
         registerLayerInActiveChapter(layerId);
         renderLayerList();
         showNotification(`"${name}" added`);
+
+        // Upload original file to cloud storage (if cloud module is active)
+        if (window._cloudUploadDataset) {
+            showNotification(`Uploading "${name}" to cloud… (large rasters can take a while)`);
+            window._cloudUploadDataset(file)
+                .then(url => { if (url) { entry.remoteUrl = url; showNotification(`"${name}" stored in cloud ✓`); } })
+                .catch(err => showNotification(`Cloud upload failed for "${name}" — raster will NOT appear in the published map`, true));
+        }
     };
     reader.readAsArrayBuffer(file);
 }
@@ -312,6 +320,15 @@ function addVectorEntry(layerId, sourceId, name, filename, data) {
     registerLayerInActiveChapter(layerId);
     renderLayerList();
     showNotification(`"${name}" added`);
+
+    // Upload normalised GeoJSON to cloud storage (if cloud module is active)
+    if (window._cloudUploadDataset) {
+        const blob = new Blob([JSON.stringify(data)], { type: 'application/geo+json' });
+        const f = new File([blob], filename.replace(/\.[^.]+$/, '') + '.geojson', { type: 'application/geo+json' });
+        window._cloudUploadDataset(f)
+            .then(url => { if (url) { entry.remoteUrl = url; showNotification(`"${name}" stored in cloud ✓`); } })
+            .catch(err => showNotification(`Cloud upload failed for "${name}" — layer will be embedded on save`, true));
+    }
 }
 
 function withMap(fn) {
@@ -323,7 +340,7 @@ function addRasterLayerToMap(entry) {
     if (!editorMap.getSource(entry.sourceId)) {
         editorMap.addSource(entry.sourceId, {
             type: 'raster',
-            url: `cog://${entry.blobUrl}`,
+            url: `cog://${entry.blobUrl || entry.remoteUrl}`,
             tileSize: 256,
         });
     }
@@ -935,10 +952,13 @@ window._getMapConfigJSON = () => {
     const layers = [];
     userLayers.forEach(entry => {
         if (entry.category === 'raster') {
-            sources[entry.sourceId] = { type: 'raster', url: `cog://./datasets/geotiff/${entry.filename}`, tileSize: 256 };
+            const url = entry.remoteUrl ? `cog://${entry.remoteUrl}` : `cog://./datasets/geotiff/${entry.filename}`;
+            sources[entry.sourceId] = { type: 'raster', url, tileSize: 256 };
             layers.push({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });
         } else {
-            sources[entry.sourceId] = { type: 'geojson', data: entry.data };
+            // Prefer the cloud/static URL — MapLibre accepts a URL string as geojson data.
+            // Falls back to embedding the full data if no remote URL exists.
+            sources[entry.sourceId] = { type: 'geojson', data: entry.remoteUrl || entry.data };
             if (entry.category === 'line') {
                 layers.push({ id: entry.id, type: 'line', source: entry.sourceId, paint: { 'line-color': entry.style.strokeColor, 'line-width': entry.style.strokeWidth } });
             } else if (entry.category === 'polygon') {
@@ -953,7 +973,102 @@ window._getMapConfigJSON = () => {
     });
     const view = editorMap ? editorMap.getCenter().toArray() : mapConfig.initialView.center;
     const zoom = editorMap ? editorMap.getZoom() : mapConfig.initialView.zoom;
-    return { initialView: { center: view, zoom }, defaultBasemap: currentBasemap, basemaps: mapConfig.basemaps, sources, layers };
+    return {
+        initialView: { center: view, zoom },
+        defaultBasemap: currentBasemap,
+        basemaps: mapConfig.basemaps,
+        sources,
+        layers,
+        // Metadata used to restore the layer panel when reopening a saved map
+        userLayersMeta: userLayers.map(l => ({
+            id: l.id, sourceId: l.sourceId, name: l.name, filename: l.filename,
+            category: l.category, style: l.style || null, remoteUrl: l.remoteUrl || null,
+        })),
+    };
+};
+
+// ─── Editor API for the cloud module (editor-cloud.js) ───────────────────────
+
+window._editorAPI = {
+    setChapters(newChapters) {
+        chapters = Array.isArray(newChapters) ? newChapters : [];
+        activeChapterIndex = null;
+        document.getElementById('no-chapter-selected').style.display = 'flex';
+        document.getElementById('chapter-form').style.display = 'none';
+        renderChaptersList();
+    },
+
+    // Restore layers from saved metadata (cloud-stored layers only)
+    async restoreLayers(metaList) {
+        for (const meta of (metaList || [])) {
+            if (!meta.remoteUrl || userLayers.some(l => l.id === meta.id)) continue;
+            if (meta.category === 'raster') {
+                const entry = { ...meta };
+                userLayers.push(entry);
+                withMap(() => addRasterLayerToMap(entry));
+            } else {
+                try {
+                    const resp = await fetch(meta.remoteUrl);
+                    const data = await resp.json();
+                    const entry = { ...meta, data };
+                    userLayers.push(entry);
+                    withMap(() => addVectorLayerToMap(entry));
+                } catch (e) {
+                    console.warn('Could not restore layer:', meta.name, e);
+                    showNotification(`Could not restore layer "${meta.name}"`, true);
+                }
+            }
+        }
+        renderLayerList();
+        if (activeChapterIndex !== null) populateLayerToggles(chapters[activeChapterIndex]);
+    },
+
+    // Add a layer from a known URL (used by the core layers catalog)
+    async addCatalogLayer(name, url, filename) {
+        const ext = (filename || url).split('.').pop().toLowerCase();
+        const id = uid();
+        const layerId = `ul-${id}`;
+        const sourceId = `us-${id}`;
+
+        if (ext === 'tif' || ext === 'tiff') {
+            const entry = { id: layerId, sourceId, name, filename: filename || name, category: 'raster', remoteUrl: url };
+            userLayers.push(entry);
+            withMap(() => addRasterLayerToMap(entry));
+            registerLayerInActiveChapter(layerId);
+            renderLayerList();
+            showNotification(`"${name}" added from catalog`);
+            return;
+        }
+
+        showNotification(`Loading "${name}"…`);
+        try {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            let data;
+            if (ext === 'kml') {
+                const text = await resp.text();
+                const kmlDoc = new DOMParser().parseFromString(text, 'text/xml');
+                data = toGeoJSON.kml(kmlDoc);
+            } else {
+                data = await resp.json();
+            }
+            const category = detectCategory(data);
+            const defaultStyle = category === 'line'
+                ? { strokeColor: '#0d6aff', strokeWidth: 2 }
+                : category === 'polygon'
+                ? { fillColor: '#0064ff', fillOpacity: 0.3, strokeColor: '#0d6aff', strokeWidth: 1 }
+                : null;
+            // remoteUrl = the static GitHub URL — no re-upload to Supabase needed
+            const entry = { id: layerId, sourceId, name, filename: filename || name, category, data, style: defaultStyle, remoteUrl: url };
+            userLayers.push(entry);
+            withMap(() => addVectorLayerToMap(entry));
+            registerLayerInActiveChapter(layerId);
+            renderLayerList();
+            showNotification(`"${name}" added from catalog`);
+        } catch (e) {
+            showNotification(`Could not load "${name}": ${e.message}`, true);
+        }
+    },
 };
 
 function deleteChapter() {

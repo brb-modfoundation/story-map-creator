@@ -6,6 +6,19 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Upload a dataset file to the 'datasets' storage bucket; returns its public URL
+export async function uploadDataset(file, userId) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${userId}/${Date.now()}-${safeName}`;
+  const { error } = await supabase.storage.from('datasets').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('datasets').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export function slugify(str) {
   return str.toLowerCase().trim()
     .replace(/[^a-z0-9\s-]/g, '')
