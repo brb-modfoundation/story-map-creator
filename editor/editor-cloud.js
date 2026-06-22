@@ -139,21 +139,12 @@ window.cloudSave = async () => {
 window.cloudTogglePublish = async () => {
   if (!currentMap) return;
   const newState = !currentMap.published;
-
-  const { error } = await supabase
-    .from('story_maps')
-    .update({ published: newState, updated_at: new Date().toISOString() })
-    .eq('id', MAP_ID);
-
-  if (error) {
-    if (typeof window.showNotification === 'function') window.showNotification('Publish failed: ' + error.message, true);
-    return;
-  }
-
-  currentMap.published = newState;
-  updatePublishButton(newState);
+  const btn = document.getElementById('cloud-publish-btn');
+  btn.disabled = true;
 
   if (newState) {
+    // Publishing: push to GitHub first, then mark published in Supabase
+    btn.textContent = '⏳ Publishing…';
     if (typeof window.showNotification === 'function') window.showNotification('Publishing to GitHub…');
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -167,6 +158,17 @@ window.cloudTogglePublish = async () => {
       });
       const result = await resp.json();
       if (!resp.ok) throw new Error(result.error ?? `HTTP ${resp.status}`);
+
+      // GitHub push succeeded — now mark published in Supabase
+      const { error } = await supabase
+        .from('story_maps')
+        .update({ published: true, updated_at: new Date().toISOString() })
+        .eq('id', MAP_ID);
+      if (error) throw new Error(error.message);
+
+      currentMap.published = true;
+      updatePublishButton(true);
+
       const ghUrl = result.url;
       setTimeout(() => {
         if (confirm(`Published!\n\nLive at:\n${ghUrl}\n\nCopy link to clipboard?`)) {
@@ -174,11 +176,25 @@ window.cloudTogglePublish = async () => {
         }
       }, 200);
     } catch (e) {
-      if (typeof window.showNotification === 'function') window.showNotification('GitHub publish failed: ' + e.message, true);
+      if (typeof window.showNotification === 'function') window.showNotification('Publish failed: ' + e.message, true);
+      updatePublishButton(false);
     }
-  } else if (typeof window.showNotification === 'function') {
-    window.showNotification('Map unpublished.');
+  } else {
+    // Unpublishing: just update Supabase flag
+    const { error } = await supabase
+      .from('story_maps')
+      .update({ published: false, updated_at: new Date().toISOString() })
+      .eq('id', MAP_ID);
+    if (error) {
+      if (typeof window.showNotification === 'function') window.showNotification('Unpublish failed: ' + error.message, true);
+    } else {
+      currentMap.published = false;
+      updatePublishButton(false);
+      if (typeof window.showNotification === 'function') window.showNotification('Map unpublished.');
+    }
   }
+
+  btn.disabled = false;
 };
 
 // ── Open viewer (without publishing to GitHub) ────────────
