@@ -555,7 +555,7 @@
 </div>
 
 <script type="module">
-  import { supabase, slugify } from './supabase.js';
+  import { supabase, slugify } from './config/supabase.js';
 
   // ── Auth state ──────────────────────────────────────────
   let currentUser = null;
@@ -683,11 +683,11 @@
 
   // ── Map actions ─────────────────────────────────────────
   window.openEditor = (mapId) => {
-    window.location.href = `editor.html?mapId=${mapId}`;
+    window.location.href = `editor/editor.html?mapId=${mapId}`;
   };
 
   window.viewMap = (slug) => {
-    window.open(`view.html?id=${slug}`, '_blank');
+    window.open(`viewer/view.html?id=${slug}`, '_blank');
   };
 
   window.togglePublish = async (mapId, publish, btn) => {

@@ -17,31 +17,56 @@ body {
 
 /* Header */
 .editor-header {
-    background: #2c3e50;
+    background: #1a2a3a;
     color: white;
-    padding: 1rem 2rem;
+    padding: 0.55rem 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
+    gap: 1rem;
 }
 
-.editor-header h1 {
+.editor-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.editor-title {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 0.95rem;
     font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#header-map-title {
+    color: #7fb3d3;
+}
+
+.header-divider {
+    color: #4a6a80;
+    flex-shrink: 0;
 }
 
 .header-actions {
     display: flex;
-    gap: 1rem;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 /* Main Layout */
 .editor-main {
     display: grid;
     grid-template-columns: 250px 1fr 400px;
-    height: calc(100vh - 73px);
+    height: calc(100vh - 52px);
     overflow: hidden;
 }
 
@@ -114,6 +139,40 @@ body {
 .chapter-item-content {
     flex: 1;
     min-width: 0;
+}
+
+.chapter-item-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.chapter-item:hover .chapter-item-actions {
+    opacity: 1;
+}
+
+.chapter-action-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 3px 5px;
+    border-radius: 3px;
+    color: #666;
+    line-height: 1;
+    font-family: inherit;
+}
+
+.chapter-action-btn:hover {
+    background: #dde3f0;
+}
+
+.chapter-action-btn.delete-btn:hover {
+    background: #fce4ec;
+    color: #c00;
 }
 
 .chapter-item h4 {
@@ -699,6 +758,19 @@ body {
 
 .btn-success:hover {
     background: #218838;
+}
+
+/* Map loading overlay spinner */
+.map-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(160,184,216,0.25);
+    border-top-color: #a0b8d8;
+    border-radius: 50%;
+    animation: mapSpinnerRotate 0.8s linear infinite;
+}
+@keyframes mapSpinnerRotate {
+    to { transform: rotate(360deg); }
 }
 
 /* Notification Animations */
@@ -1326,4 +1398,63 @@ body {
     color: #1565c0;
     z-index: 500;
     pointer-events: none;
+}
+
+/* ── Image Crop Modal ─────────────────────────────────────────────────────── */
+#image-crop-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,0.88);
+    align-items: center;
+    justify-content: center;
+}
+#image-crop-modal.open {
+    display: flex;
+}
+#image-crop-dialog {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem;
+    background: #1e1e2e;
+    border-radius: 10px;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+#image-crop-canvas-wrap {
+    position: relative;
+    display: inline-block;
+    user-select: none;
+    cursor: crosshair;
+    flex-shrink: 1;
+    overflow: hidden;
+}
+#image-crop-canvas {
+    display: block;
+    max-width: 75vw;
+    max-height: 70vh;
+}
+#image-crop-box {
+    position: absolute;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+    cursor: move;
+    box-sizing: border-box;
+}
+#crop-handle-br {
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 2px;
+    cursor: se-resize;
+}
+#image-crop-actions {
+    display: flex;
+    gap: 0.5rem;
 }

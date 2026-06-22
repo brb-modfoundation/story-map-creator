@@ -1,7 +1,7 @@
 // editor-cloud.js — Supabase integration for the Story Map Editor
 // Handles: load/save/publish, dataset uploads to Storage, MOD core layers catalog
 
-import { supabase, uploadDataset } from './supabase.js';
+import { supabase, uploadDataset } from '../config/supabase.js';
 
 const params = new URLSearchParams(window.location.search);
 const MAP_ID = params.get('mapId');
@@ -22,12 +22,15 @@ window._cloudUploadDataset = async (file) => {
 };
 
 // ── Boot ──────────────────────────────────────────────────
+window._cloudActive = true;   // tells editor.js not to auto-dismiss the loading overlay
+
 (async () => {
   if (!MAP_ID) {
     // Standalone use without a map id — still init catalog if logged in
     const { data: { session } } = await supabase.auth.getSession();
     if (session) currentUser = session.user;
     initCoreCatalog();
+    window._markLayersRestored?.();
     return;
   }
 
@@ -46,6 +49,7 @@ window._cloudUploadDataset = async (file) => {
     .single();
 
   if (error || !data) {
+    window._markLayersRestored?.();
     alert('Map not found or you do not have access.');
     window.location.href = 'dashboard.html';
     return;
@@ -53,8 +57,8 @@ window._cloudUploadDataset = async (file) => {
 
   currentMap = data;
 
-  document.getElementById('cloud-bar').style.display = 'flex';
-  document.getElementById('cloud-map-title').textContent = data.title;
+  document.getElementById('header-map-title').textContent = data.title;
+  document.getElementById('cloud-publish-btn').style.display = '';
   updatePublishButton(data.published);
 
   // Restore chapters
@@ -73,13 +77,17 @@ window._cloudUploadDataset = async (file) => {
   // Restore cloud-stored layers
   if (data.map_config?.userLayersMeta?.length && window._editorAPI) {
     setStatus('Restoring layers…');
+    const loadingLabel = document.getElementById('map-loading-label');
+    if (loadingLabel) loadingLabel.textContent = `Loading ${data.map_config.userLayersMeta.length} layer(s)…`;
     await window._editorAPI.restoreLayers(data.map_config.userLayersMeta);
     // Collapse expanded polygon IDs (ul-xxx-fill/outline → ul-xxx) so the
     // editor's selectChapter and layer toggles can find them by base ID.
     window._editorAPI.normalizeChapterLayers?.();
+    window._editorAPI.selectFirstChapter?.();
   }
 
   setStatus('Loaded ✓');
+  window._markLayersRestored?.();
   initCoreCatalog();
 })();
 
@@ -90,7 +98,7 @@ window.cloudSave = async () => {
     return;
   }
 
-  const btn = document.getElementById('cloud-save-btn');
+  const btn = document.getElementById('save-all-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Saving…';
   setStatus('Saving…');
@@ -112,7 +120,7 @@ window.cloudSave = async () => {
     .eq('id', MAP_ID);
 
   btn.disabled = false;
-  btn.textContent = '☁ Save';
+  btn.textContent = 'Save';
 
   if (error) {
     setStatus('Save failed ✗', true);

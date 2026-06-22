@@ -9,11 +9,14 @@ let activeChapterIndex = null;
 let editorMap = null;
 let currentBasemap = mapConfig.defaultBasemap;
 let userLayers = [];
+let _layersRestored = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeMap();
     initializeUI();
     renderChaptersList();
+    // If editor-cloud.js is not present (standalone mode), mark layers restored immediately
+    setTimeout(() => { if (!window._cloudActive) window._markLayersRestored?.(); }, 500);
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,6 +37,7 @@ function getMapLayerIds(entry) {
 }
 
 // ─── Map ──────────────────────────────────────────────────────────────────────
+
 
 function initializeMap() {
     const bm = mapConfig.basemaps[mapConfig.defaultBasemap];
@@ -63,7 +67,26 @@ function initializeMap() {
     editorMap.on('pitch', updateViewInfo);
     editorMap.on('rotate', updateViewInfo);
     editorMap.on('zoom', updateViewInfo);
+
+    // Hide the map loading overlay once layers are restored AND the map is idle
+    editorMap.on('idle', () => {
+        if (_layersRestored) hideMapLoadingOverlay();
+    });
 }
+
+function hideMapLoadingOverlay() {
+    const el = document.getElementById('map-loading-overlay');
+    if (el) el.style.display = 'none';
+}
+
+// Called by editor-cloud.js after all layers are restored and first chapter selected
+window._markLayersRestored = () => {
+    _layersRestored = true;
+    // If the map is already idle, hide immediately
+    if (editorMap && !editorMap.isMoving() && !editorMap.isZooming() && !editorMap.isRotating()) {
+        hideMapLoadingOverlay();
+    }
+};
 
 function updateViewInfo() {
     document.getElementById('current-zoom').textContent = editorMap.getZoom().toFixed(2);
@@ -86,7 +109,9 @@ function initializeUI() {
     initBasemapButtons();
     initUploadPanel();
 
-    document.getElementById('add-chapter-btn').addEventListener('click', addNewChapter);
+    document.querySelectorAll('[data-add-type]').forEach(btn => {
+        btn.addEventListener('click', () => addChapter(btn.dataset.addType));
+    });
     document.getElementById('capture-view-btn').addEventListener('click', captureCurrentView);
 
     document.getElementById('view-type').addEventListener('change', (e) => {
@@ -130,9 +155,7 @@ function initializeUI() {
         });
     });
 
-    document.getElementById('save-chapter-btn').addEventListener('click', saveCurrentChapter);
     document.getElementById('save-all-btn').addEventListener('click', saveAllChanges);
-    document.getElementById('delete-chapter-btn').addEventListener('click', deleteChapter);
 
     document.getElementById('export-btn').addEventListener('click', openExportModal);
     document.getElementById('copy-story-btn').addEventListener('click', () => copyTextarea('export-story-output'));
@@ -147,6 +170,166 @@ function initializeUI() {
 
     setupCollapsibleSections();
     setupKeyboardShortcuts();
+    initChapterImageUpload();
+}
+
+function updateImageChapterPreview(url) {
+    const img   = document.getElementById('image-chapter-preview-img');
+    const empty = document.getElementById('image-chapter-preview-empty');
+    if (url) {
+        img.src = url;
+        img.style.display = 'block';
+        empty.style.display = 'none';
+    } else {
+        img.src = '';
+        img.style.display = 'none';
+        empty.style.display = '';
+    }
+}
+
+function initChapterImageUpload() {
+    const fileInput = document.getElementById('chapter-image-file');
+    const hiddenUrl = document.getElementById('chapter-image');
+    const preview   = document.getElementById('chapter-image-preview');
+    const thumb     = document.getElementById('chapter-image-thumb');
+    const clearBtn  = document.getElementById('chapter-image-clear');
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        fileInput.value = '';
+        openCropModal(file, async (croppedBlob) => {
+            const croppedFile = new File([croppedBlob], file.name, { type: 'image/jpeg' });
+            const localUrl = URL.createObjectURL(croppedBlob);
+            thumb.src = localUrl;
+            preview.style.display = 'block';
+            hiddenUrl.value = localUrl;
+            updateImageChapterPreview(localUrl);
+
+            const remoteUrl = await window._cloudUploadDataset?.(croppedFile);
+            if (remoteUrl) {
+                hiddenUrl.value = remoteUrl;
+                thumb.src = remoteUrl;
+                updateImageChapterPreview(remoteUrl);
+            }
+        });
+    });
+
+    clearBtn.addEventListener('click', () => {
+        hiddenUrl.value = '';
+        thumb.src = '';
+        preview.style.display = 'none';
+        fileInput.value = '';
+        updateImageChapterPreview(null);
+    });
+}
+
+function openCropModal(file, onApply) {
+    const RATIO = 16 / 9;
+    const modal   = document.getElementById('image-crop-modal');
+    const canvas  = document.getElementById('image-crop-canvas');
+    const box     = document.getElementById('image-crop-box');
+    const handle  = document.getElementById('crop-handle-br');
+    const applyBtn  = document.getElementById('image-crop-apply');
+    const cancelBtn = document.getElementById('image-crop-cancel');
+    const ctx = canvas.getContext('2d');
+
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (ev) => { img.src = ev.target.result; };
+    img.onload = () => {
+        // Scale image to fit within 75vw × 70vh
+        const maxW = Math.min(window.innerWidth * 0.75, 1200);
+        const maxH = Math.min(window.innerHeight * 0.70, 800);
+        const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+        canvas.width  = Math.round(img.naturalWidth  * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Init crop box: max 16:9 that fits the canvas, centered
+        let bw = canvas.width;
+        let bh = Math.round(bw / RATIO);
+        if (bh > canvas.height) { bh = canvas.height; bw = Math.round(bh * RATIO); }
+        let bx = Math.round((canvas.width  - bw) / 2);
+        let by = Math.round((canvas.height - bh) / 2);
+
+        const rect = canvas.getBoundingClientRect();
+        function applyBox() {
+            box.style.left   = bx + 'px';
+            box.style.top    = by + 'px';
+            box.style.width  = bw + 'px';
+            box.style.height = bh + 'px';
+        }
+        applyBox();
+        modal.classList.add('open');
+
+        // Drag to move
+        let dragging = false, dragOffX = 0, dragOffY = 0;
+        box.addEventListener('mousedown', (e) => {
+            if (e.target === handle) return;
+            dragging = true;
+            const r = canvas.getBoundingClientRect();
+            dragOffX = e.clientX - r.left - bx;
+            dragOffY = e.clientY - r.top  - by;
+            e.preventDefault();
+        });
+
+        // Drag to resize (BR handle, locked 16:9)
+        let resizing = false;
+        handle.addEventListener('mousedown', (e) => {
+            resizing = true;
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        function onMouseMove(e) {
+            const r = canvas.getBoundingClientRect();
+            const mx = e.clientX - r.left;
+            const my = e.clientY - r.top;
+            if (dragging) {
+                bx = Math.max(0, Math.min(canvas.width  - bw, mx - dragOffX));
+                by = Math.max(0, Math.min(canvas.height - bh, my - dragOffY));
+                applyBox();
+            }
+            if (resizing) {
+                let nw = Math.max(80, mx - bx);
+                let nh = Math.round(nw / RATIO);
+                if (bx + nw > canvas.width)  { nw = canvas.width  - bx; nh = Math.round(nw / RATIO); }
+                if (by + nh > canvas.height) { nh = canvas.height - by; nw = Math.round(nh * RATIO); }
+                bw = Math.round(nw);
+                bh = Math.round(nh);
+                applyBox();
+            }
+        }
+        function onMouseUp() { dragging = false; resizing = false; }
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup',   onMouseUp);
+
+        function close() {
+            modal.classList.remove('open');
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup',   onMouseUp);
+            applyBtn.onclick  = null;
+            cancelBtn.onclick = null;
+        }
+
+        applyBtn.onclick = () => {
+            // Crop at original image resolution
+            const offscreen = document.createElement('canvas');
+            offscreen.width  = 1920;
+            offscreen.height = 1080;
+            const oc = offscreen.getContext('2d');
+            const sx = (bx / canvas.width)  * img.naturalWidth;
+            const sy = (by / canvas.height) * img.naturalHeight;
+            const sw = (bw / canvas.width)  * img.naturalWidth;
+            const sh = (bh / canvas.height) * img.naturalHeight;
+            oc.drawImage(img, sx, sy, sw, sh, 0, 0, 1920, 1080);
+            offscreen.toBlob((blob) => { close(); onApply(blob); }, 'image/jpeg', 0.92);
+        };
+
+        cancelBtn.onclick = close;
+    };
+    reader.readAsDataURL(file);
 }
 
 function initSidebarTabs() {
@@ -244,7 +427,8 @@ function registerLayerInActiveChapter(layerId) {
     ch.layers[layerId] = {
         visible: true,
         opacity: 1,
-        color: entry ? defaultLayerColor(entry.category, entry.style) : '#0d6aff',
+        color: entry?.style?.fillColor ?? (entry ? defaultLayerColor(entry.category, entry.style) : '#0d6aff'),
+        strokeColor: entry?.style?.strokeColor ?? '#0d6aff',
         strokeWidth: entry?.style?.strokeWidth ?? 2,
     };
     populateLayerToggles(ch);
@@ -334,20 +518,34 @@ function addVectorEntry(layerId, sourceId, name, filename, data) {
 }
 
 function withMap(fn) {
-    if (editorMap.isStyleLoaded()) fn();
-    else editorMap.once('load', fn);
+    if (editorMap.isStyleLoaded()) {
+        console.debug('[withMap] map ready, calling immediately');
+        fn();
+    } else {
+        console.debug('[withMap] map not ready, deferring to load event');
+        editorMap.once('load', fn);
+    }
 }
 
 function addRasterLayerToMap(entry) {
-    if (!editorMap.getSource(entry.sourceId)) {
-        editorMap.addSource(entry.sourceId, {
-            type: 'raster',
-            url: `cog://${entry.blobUrl || entry.remoteUrl}`,
-            tileSize: 256,
-        });
-    }
-    if (!editorMap.getLayer(entry.id)) {
-        editorMap.addLayer({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });
+    console.log('[addRasterLayerToMap] entry:', entry.id, '| blobUrl:', entry.blobUrl, '| remoteUrl:', entry.remoteUrl);
+    try {
+        if (!editorMap.getSource(entry.sourceId)) {
+            const url = `cog://${entry.blobUrl || entry.remoteUrl}`;
+            console.log('[addRasterLayerToMap] adding source', entry.sourceId, 'with url', url);
+            editorMap.addSource(entry.sourceId, { type: 'raster', url, tileSize: 256 });
+        } else {
+            console.log('[addRasterLayerToMap] source already exists:', entry.sourceId);
+        }
+        if (!editorMap.getLayer(entry.id)) {
+            console.log('[addRasterLayerToMap] adding layer', entry.id);
+            editorMap.addLayer({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });
+            console.log('[addRasterLayerToMap] layer added OK:', entry.id);
+        } else {
+            console.log('[addRasterLayerToMap] layer already exists:', entry.id);
+        }
+    } catch (err) {
+        console.error('[addRasterLayerToMap] FAILED for', entry.id, err);
     }
 }
 
@@ -364,19 +562,40 @@ function detectTextField(geojsonData) {
 }
 
 function addVectorLayerToMap(entry) {
+    console.log('[addVectorLayerToMap] entry:', entry.id, 'category:', entry.category, 'style:', entry.style, 'data features:', entry.data?.features?.length);
+    try {
     if (!editorMap.getSource(entry.sourceId)) {
+        console.log('[addVectorLayerToMap] adding source', entry.sourceId);
         editorMap.addSource(entry.sourceId, { type: 'geojson', data: entry.data });
+    } else {
+        console.log('[addVectorLayerToMap] source already exists:', entry.sourceId);
     }
-    if (editorMap.getLayer(entry.id)) return;
+    if (editorMap.getLayer(entry.id)) {
+        console.log('[addVectorLayerToMap] base layer already exists, returning:', entry.id);
+        return;
+    }
 
     if (entry.category === 'line') {
+        console.log('[addVectorLayerToMap] adding line layer', entry.id);
         editorMap.addLayer({ id: entry.id, type: 'line', source: entry.sourceId, paint: { 'line-color': entry.style.strokeColor, 'line-width': entry.style.strokeWidth } });
+        console.log('[addVectorLayerToMap] line layer added OK:', entry.id);
     } else if (entry.category === 'polygon') {
         const fillColor = hexToRgba(entry.style.fillColor, entry.style.fillOpacity);
-        if (!editorMap.getLayer(`${entry.id}-fill`))
+        console.log('[addVectorLayerToMap] polygon fillColor:', fillColor, 'style:', entry.style);
+        if (!editorMap.getLayer(`${entry.id}-fill`)) {
+            console.log('[addVectorLayerToMap] adding fill layer', `${entry.id}-fill`);
             editorMap.addLayer({ id: `${entry.id}-fill`, type: 'fill', source: entry.sourceId, paint: { 'fill-color': fillColor } });
-        if (!editorMap.getLayer(`${entry.id}-outline`))
+            console.log('[addVectorLayerToMap] fill layer added OK');
+        } else {
+            console.log('[addVectorLayerToMap] fill layer already exists:', `${entry.id}-fill`);
+        }
+        if (!editorMap.getLayer(`${entry.id}-outline`)) {
+            console.log('[addVectorLayerToMap] adding outline layer', `${entry.id}-outline`);
             editorMap.addLayer({ id: `${entry.id}-outline`, type: 'line', source: entry.sourceId, paint: { 'line-color': entry.style.strokeColor, 'line-width': entry.style.strokeWidth } });
+            console.log('[addVectorLayerToMap] outline layer added OK');
+        } else {
+            console.log('[addVectorLayerToMap] outline layer already exists:', `${entry.id}-outline`);
+        }
     } else if (entry.category === 'text') {
         const tf = detectTextField(entry.data);
         editorMap.addLayer({
@@ -386,6 +605,9 @@ function addVectorLayerToMap(entry) {
         });
     } else if (entry.category === 'symbol') {
         editorMap.addLayer({ id: entry.id, type: 'circle', source: entry.sourceId, paint: { 'circle-color': '#ff6b6b', 'circle-radius': 6, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } });
+    }
+    } catch (err) {
+        console.error('[addVectorLayerToMap] FAILED for', entry.id, 'category:', entry.category, err);
     }
 }
 
@@ -519,14 +741,39 @@ function renderChaptersList() {
         item.className = 'chapter-item' + (index === activeChapterIndex ? ' active' : '');
         item.draggable = true;
         item.dataset.index = index;
+        const typeLabel = chapter.chapterType === 'title' ? 'Title' : chapter.chapterType === 'image' ? 'Image' : chapter.isTitleSlide ? 'Title' : 'Map';
+        const typeColor = chapter.chapterType === 'title' ? '#e67e22' : chapter.chapterType === 'image' ? '#8e44ad' : '#2980b9';
         item.innerHTML = `
             <span class="drag-handle">⋮⋮</span>
             <div class="chapter-item-content">
-                <span class="chapter-number">Chapter ${index + 1}</span>
+                <span class="chapter-number">Ch ${index} &nbsp;<span style="font-size:0.65rem;font-weight:700;color:${typeColor};text-transform:uppercase;letter-spacing:0.04em;">${typeLabel}</span></span>
                 <h4>${chapter.title || 'Untitled'}</h4>
-                <p>${chapter.description || 'No description'}</p>
+                <p>${chapter.description || ''}</p>
+            </div>
+            <div class="chapter-item-actions">
+                <button class="chapter-action-btn duplicate-btn" data-index="${index}" title="Duplicate chapter">⧉</button>
+                <button class="chapter-action-btn delete-btn" data-index="${index}" title="Delete chapter">✕</button>
             </div>
         `;
+        item.querySelector('.duplicate-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            duplicateChapter(parseInt(e.currentTarget.dataset.index));
+        });
+        item.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = parseInt(e.currentTarget.dataset.index);
+            if (confirm('Delete this chapter?')) {
+                chapters.splice(idx, 1);
+                if (activeChapterIndex === idx) {
+                    activeChapterIndex = null;
+                    document.getElementById('no-chapter-selected').style.display = 'flex';
+                    document.getElementById('chapter-form').style.display = 'none';
+                } else if (activeChapterIndex !== null && activeChapterIndex > idx) {
+                    activeChapterIndex--;
+                }
+                renderChaptersList();
+            }
+        });
         item.addEventListener('dragstart', handleDragStart);
         item.addEventListener('dragover', handleDragOver);
         item.addEventListener('drop', handleDrop);
@@ -538,41 +785,57 @@ function renderChaptersList() {
     });
 }
 
-function addNewChapter() {
-    const newChapter = {
-        id: `chapter-${Date.now()}`,
-        title: 'New Chapter',
-        description: 'Description for this chapter',
-        center: editorMap.getCenter().toArray(),
-        zoom: editorMap.getZoom(),
-        pitch: editorMap.getPitch(),
-        bearing: editorMap.getBearing(),
-        duration: 2000,
-        layers: {},
-        image: null,
+function addChapter(type = 'map') {
+    const titles = { title: 'New Title Slide', image: 'New Image Chapter', map: 'New Chapter' };
+    const ch = {
+        id: String(chapters.length + 1),
+        chapterType: type,
+        title: titles[type] || 'New Chapter',
         alignment: 'center',
+        layers: {},
     };
+    if (type !== 'image') {
+        ch.center = editorMap.getCenter().toArray();
+        ch.zoom = editorMap.getZoom();
+        ch.pitch = editorMap.getPitch();
+        ch.bearing = editorMap.getBearing();
+        ch.duration = 2000;
+    }
     if (activeChapterIndex !== null) {
-        chapters.splice(activeChapterIndex + 1, 0, newChapter);
+        chapters.splice(activeChapterIndex + 1, 0, ch);
         renderChaptersList();
         selectChapter(activeChapterIndex + 1);
     } else {
-        chapters.push(newChapter);
+        chapters.push(ch);
         renderChaptersList();
         selectChapter(chapters.length - 1);
     }
 }
 
 function selectChapter(index) {
+    // Auto-save the current chapter before switching
+    if (activeChapterIndex !== null && activeChapterIndex !== index) {
+        saveCurrentChapter();
+    }
     activeChapterIndex = index;
     renderChaptersList();
     populateChapterForm(chapters[index]);
 
     const ch = chapters[index];
-    if (ch.bounds) {
-        editorMap.fitBounds(ch.bounds, { padding: 50, pitch: ch.pitch || 0, bearing: ch.bearing || 0, duration: 1000 });
-    } else if (ch.center) {
-        editorMap.flyTo({ center: ch.center, zoom: ch.zoom, pitch: ch.pitch || 0, bearing: ch.bearing || 0, duration: 1000 });
+
+    // Center panel: show image preview for image chapters, map otherwise
+    const isImageChapter = ch.chapterType === 'image';
+    document.getElementById('editor-map').style.visibility = isImageChapter ? 'hidden' : '';
+    const preview = document.getElementById('image-chapter-preview');
+    preview.style.display = isImageChapter ? 'flex' : 'none';
+    if (isImageChapter) updateImageChapterPreview(ch.image);
+
+    if (!isImageChapter) {
+        if (ch.bounds) {
+            editorMap.fitBounds(ch.bounds, { padding: 50, pitch: ch.pitch || 0, bearing: ch.bearing || 0, duration: 1000 });
+        } else if (ch.center) {
+            editorMap.flyTo({ center: ch.center, zoom: ch.zoom, pitch: ch.pitch || 0, bearing: ch.bearing || 0, duration: 1000 });
+        }
     }
 
     userLayers.forEach(layer => {
@@ -611,13 +874,16 @@ function applyChapterLayerStyle(entry, cfg) {
             editorMap.setPaintProperty(`${entry.id}-fill`, 'fill-opacity', opacity);
         }
         if (editorMap.getLayer(`${entry.id}-outline`)) {
-            editorMap.setPaintProperty(`${entry.id}-outline`, 'line-color', color);
+            editorMap.setPaintProperty(`${entry.id}-outline`, 'line-color', cfg.strokeColor ?? color);
             editorMap.setPaintProperty(`${entry.id}-outline`, 'line-width', strokeWidth);
         }
     } else if (entry.category === 'symbol') {
         if (editorMap.getLayer(entry.id)) {
             editorMap.setPaintProperty(entry.id, 'circle-color', color);
             editorMap.setPaintProperty(entry.id, 'circle-opacity', opacity);
+            editorMap.setPaintProperty(entry.id, 'circle-stroke-color', cfg.strokeColor ?? '#ffffff');
+            editorMap.setPaintProperty(entry.id, 'circle-stroke-width', 1);
+            editorMap.setPaintProperty(entry.id, 'circle-radius', cfg.radius ?? 6);
         }
     } else if (entry.category === 'text') {
         if (editorMap.getLayer(entry.id)) {
@@ -629,9 +895,23 @@ function applyChapterLayerStyle(entry, cfg) {
 
 // ─── Chapter Form ─────────────────────────────────────────────────────────────
 
+function setFormType(type) {
+    document.getElementById('chapter-type').value = type;
+    const show = (id, visible) => { document.getElementById(id).style.display = visible ? '' : 'none'; };
+    show('section-subtitles',          type === 'title');
+    show('section-map-chapter-fields', type !== 'title');
+    show('section-image',              type !== 'title');
+    show('section-alignment',          type !== 'title');
+    show('section-map-view',           type !== 'image');
+    show('section-layers',             type !== 'image');
+}
+
 function populateChapterForm(chapter) {
     document.getElementById('no-chapter-selected').style.display = 'none';
     document.getElementById('chapter-form').style.display = 'block';
+
+    const type = chapter.chapterType || (chapter.isTitleSlide ? 'title' : 'map');
+    setFormType(type);
 
     const set = (id, val) => { document.getElementById(id).value = val ?? ''; };
     set('chapter-id', chapter.id);
@@ -642,7 +922,19 @@ function populateChapterForm(chapter) {
     set('chapter-subtitle2', chapter.subtitle2);
     set('chapter-year', chapter.year);
     set('chapter-population', chapter.population);
-    set('chapter-image', chapter.image);
+    // image: set hidden URL field and show preview if present
+    document.getElementById('chapter-image').value = chapter.image ?? '';
+    const thumb = document.getElementById('chapter-image-thumb');
+    const preview = document.getElementById('chapter-image-preview');
+    const fileInput = document.getElementById('chapter-image-file');
+    if (chapter.image) {
+        thumb.src = chapter.image;
+        preview.style.display = 'block';
+    } else {
+        thumb.src = '';
+        preview.style.display = 'none';
+    }
+    fileInput.value = '';
     set('chapter-image-caption', chapter.imageCaption);
     set('chapter-description-source', chapter.descriptionSource);
     set('chapter-quote-source', chapter.quoteSource);
@@ -793,7 +1085,7 @@ function populateLayerToggles(chapter) {
             colorBox.className = 'chapter-layer-ctrl-item';
             const colorLbl = document.createElement('span');
             colorLbl.className = 'chapter-layer-ctrl-label';
-            colorLbl.textContent = entry.category === 'polygon' ? 'Fill' : 'Color';
+            colorLbl.textContent = (entry.category === 'polygon' || entry.category === 'symbol') ? 'Fill' : 'Color';
             const colorPicker = document.createElement('input');
             colorPicker.type = 'color';
             colorPicker.className = 'chapter-layer-color';
@@ -804,6 +1096,25 @@ function populateLayerToggles(chapter) {
             });
             colorBox.append(colorLbl, colorPicker);
             ctrl.appendChild(colorBox);
+
+            // Stroke color (polygon + symbol)
+            if (entry.category === 'polygon' || entry.category === 'symbol') {
+                const strokeBox = document.createElement('div');
+                strokeBox.className = 'chapter-layer-ctrl-item';
+                const strokeLbl = document.createElement('span');
+                strokeLbl.className = 'chapter-layer-ctrl-label';
+                strokeLbl.textContent = 'Stroke';
+                const strokePicker = document.createElement('input');
+                strokePicker.type = 'color';
+                strokePicker.className = 'chapter-layer-color';
+                strokePicker.value = cfg.strokeColor || (entry.category === 'symbol' ? '#ffffff' : cfg.color || '#0d6aff');
+                strokePicker.addEventListener('input', e => {
+                    cfg.strokeColor = e.target.value;
+                    applyChapterLayerStyle(entry, cfg);
+                });
+                strokeBox.append(strokeLbl, strokePicker);
+                ctrl.appendChild(strokeBox);
+            }
         }
 
         // Opacity
@@ -851,6 +1162,29 @@ function populateLayerToggles(chapter) {
             ctrl.appendChild(wBox);
         }
 
+        // Radius (symbol/point layers)
+        if (entry.category === 'symbol') {
+            const rBox = document.createElement('div');
+            rBox.className = 'chapter-layer-ctrl-item';
+            const rLbl = document.createElement('span');
+            rLbl.className = 'chapter-layer-ctrl-label';
+            rLbl.textContent = 'Radius';
+            const rInput = document.createElement('input');
+            rInput.type = 'number';
+            rInput.className = 'chapter-layer-width';
+            rInput.min = '1'; rInput.max = '40'; rInput.step = '1';
+            rInput.value = cfg.radius ?? 6;
+            const rUnit = document.createElement('span');
+            rUnit.className = 'chapter-layer-unit';
+            rUnit.textContent = 'px';
+            rInput.addEventListener('input', e => {
+                cfg.radius = parseFloat(e.target.value) || 6;
+                applyChapterLayerStyle(entry, cfg);
+            });
+            rBox.append(rLbl, rInput, rUnit);
+            ctrl.appendChild(rBox);
+        }
+
         card.appendChild(ctrl);
         container.appendChild(card);
     });
@@ -879,40 +1213,63 @@ function saveCurrentChapter() {
     const ch = chapters[activeChapterIndex];
     const get = (id) => document.getElementById(id).value;
 
-    ch.id = get('chapter-id');
+    ch.chapterType = get('chapter-type');
+    delete ch.isTitleSlide;
+    // ch.id is managed by reassignChapterIds() — do not read from form
     ch.title = get('chapter-title');
-    ch.description = get('chapter-description');
-    ch.quote = get('chapter-quote') || null;
-    ch.subtitle = get('chapter-subtitle1') || null;
-    ch.subtitle2 = get('chapter-subtitle2') || null;
-    ch.year = get('chapter-year') || null;
-    ch.population = get('chapter-population') || null;
-    ch.image = get('chapter-image') || null;
-    ch.imageCaption = get('chapter-image-caption') || null;
-    ch.descriptionSource = get('chapter-description-source') || null;
-    ch.quoteSource = get('chapter-quote-source') || null;
-    ch.alignment = get('chapter-alignment');
-    ch.buttonText = get('chapter-button-text') || null;
-    ch.buttonUrl = get('chapter-button-url') || null;
-    ch.pitch = parseInt(get('chapter-pitch')) || 0;
-    ch.bearing = parseInt(get('chapter-bearing')) || 0;
-    ch.duration = parseInt(get('chapter-duration')) || 2000;
 
-    if (get('view-type') === 'bounds') {
-        ch.bounds = ['bounds-sw-lng', 'bounds-sw-lat', 'bounds-ne-lng', 'bounds-ne-lat'].map(id => parseFloat(get(id)));
-        const saveBounds = (key, prefix) => {
-            const vals = ['sw-lng', 'sw-lat', 'ne-lng', 'ne-lat'].map(s => get(`${prefix}-${s}`));
-            if (vals.every(v => v)) ch[key] = vals.map(parseFloat);
-            else delete ch[key];
-        };
-        saveBounds('boundsIpad', 'bounds-ipad');
-        saveBounds('boundsIpadPortrait', 'bounds-ipad-portrait');
-        saveBounds('boundsMobile', 'bounds-mobile');
-        delete ch.center; delete ch.zoom;
+    const isTitle = ch.chapterType === 'title';
+    const isImage = ch.chapterType === 'image';
+
+    ch.subtitle  = isTitle ? (get('chapter-subtitle1') || null) : null;
+    ch.subtitle2 = isTitle ? (get('chapter-subtitle2') || null) : null;
+
+    if (!isTitle) {
+        ch.description     = get('chapter-description');
+        ch.quote           = get('chapter-quote') || null;
+        ch.year            = get('chapter-year') || null;
+        ch.population      = get('chapter-population') || null;
+        ch.descriptionSource = get('chapter-description-source') || null;
+        ch.quoteSource     = get('chapter-quote-source') || null;
+        ch.buttonText      = get('chapter-button-text') || null;
+        ch.buttonUrl       = get('chapter-button-url') || null;
+        ch.image           = get('chapter-image') || null;
+        ch.imageCaption    = get('chapter-image-caption') || null;
+        ch.alignment       = get('chapter-alignment');
     } else {
-        ch.center = [parseFloat(get('chapter-center-lng')), parseFloat(get('chapter-center-lat'))];
-        ch.zoom = parseFloat(get('chapter-zoom'));
-        delete ch.bounds; delete ch.boundsIpad; delete ch.boundsIpadPortrait; delete ch.boundsMobile;
+        ch.description = null; ch.quote = null; ch.year = null; ch.population = null;
+        ch.descriptionSource = null; ch.quoteSource = null;
+        ch.buttonText = null; ch.buttonUrl = null;
+        ch.image = null; ch.imageCaption = null;
+        ch.alignment = 'center';
+    }
+
+    if (!isImage) {
+        ch.pitch    = parseInt(get('chapter-pitch')) || 0;
+        ch.bearing  = parseInt(get('chapter-bearing')) || 0;
+        ch.duration = parseInt(get('chapter-duration')) || 2000;
+
+        if (get('view-type') === 'bounds') {
+            ch.bounds = ['bounds-sw-lng', 'bounds-sw-lat', 'bounds-ne-lng', 'bounds-ne-lat'].map(id => parseFloat(get(id)));
+            const saveBounds = (key, prefix) => {
+                const vals = ['sw-lng', 'sw-lat', 'ne-lng', 'ne-lat'].map(s => get(`${prefix}-${s}`));
+                if (vals.every(v => v)) ch[key] = vals.map(parseFloat);
+                else delete ch[key];
+            };
+            saveBounds('boundsIpad', 'bounds-ipad');
+            saveBounds('boundsIpadPortrait', 'bounds-ipad-portrait');
+            saveBounds('boundsMobile', 'bounds-mobile');
+            delete ch.center; delete ch.zoom;
+        } else {
+            ch.center = [parseFloat(get('chapter-center-lng')), parseFloat(get('chapter-center-lat'))];
+            ch.zoom = parseFloat(get('chapter-zoom'));
+            delete ch.bounds; delete ch.boundsIpad; delete ch.boundsIpadPortrait; delete ch.boundsMobile;
+        }
+    } else {
+        delete ch.center; delete ch.zoom; delete ch.bounds;
+        delete ch.boundsIpad; delete ch.boundsIpadPortrait; delete ch.boundsMobile;
+        delete ch.pitch; delete ch.bearing; delete ch.duration;
+        ch.layers = {};
     }
 
     // ch.layers is maintained live by the chapter layers UI — no DOM re-read needed
@@ -921,9 +1278,14 @@ function saveCurrentChapter() {
     showNotification('Chapter saved!');
 }
 
+function reassignChapterIds() {
+    chapters.forEach((ch, i) => { ch.id = String(i); });
+}
+
 function saveAllChanges() {
     if (activeChapterIndex !== null) saveCurrentChapter();
-    // If cloud module is loaded, trigger cloud save; otherwise fall back to local notification
+    reassignChapterIds();
+    renderChaptersList();
     if (typeof cloudSave === 'function') {
         cloudSave();
     } else {
@@ -939,7 +1301,7 @@ window._getStoryConfigJSON = () => {
             const entry = userLayers.find(l => l.id === layerId);
             if (entry?.category === 'polygon') {
                 expandedLayers[`${layerId}-fill`] = { visible: state.visible, opacity: state.opacity, color: state.color };
-                expandedLayers[`${layerId}-outline`] = { visible: state.visible, opacity: 1, color: state.color, strokeWidth: state.strokeWidth };
+                expandedLayers[`${layerId}-outline`] = { visible: state.visible, opacity: 1, color: state.strokeColor ?? state.color, strokeWidth: state.strokeWidth };
             } else {
                 expandedLayers[layerId] = state;
             }
@@ -979,6 +1341,7 @@ window._getMapConfigJSON = () => {
         initialView: { center: view, zoom },
         defaultBasemap: currentBasemap,
         basemaps: mapConfig.basemaps,
+
         sources,
         layers,
         // Metadata used to restore the layer panel when reopening a saved map
@@ -1021,6 +1384,7 @@ window._editorAPI = {
                     if (userLayers.some(l => l.id === base && l.category === 'polygon')) {
                         if (!collapsed[base]) collapsed[base] = {};
                         if (state.strokeWidth != null) collapsed[base].strokeWidth = state.strokeWidth;
+                        if (state.color != null) collapsed[base].strokeColor = state.color;
                         return;
                     }
                 }
@@ -1033,27 +1397,68 @@ window._editorAPI = {
 
     // Restore layers from saved metadata (cloud-stored layers only)
     async restoreLayers(metaList) {
-        for (const meta of (metaList || [])) {
-            if (!meta.remoteUrl || userLayers.some(l => l.id === meta.id)) continue;
+        console.log('[restoreLayers] restoring', metaList?.length, 'layers:', metaList?.map(m => `${m.id}(${m.category})`));
+
+        // Fetch all vector data in parallel first, before touching the map
+        const entries = [];
+        await Promise.all((metaList || []).map(async meta => {
+            if (!meta.remoteUrl) { console.warn('[restoreLayers] skipping — no remoteUrl:', meta.id); return; }
+            if (userLayers.some(l => l.id === meta.id)) { console.log('[restoreLayers] skipping — already in userLayers:', meta.id); return; }
             if (meta.category === 'raster') {
-                const entry = { ...meta };
-                userLayers.push(entry);
-                withMap(() => addRasterLayerToMap(entry));
+                entries.push({ entry: { ...meta }, addFn: addRasterLayerToMap });
             } else {
                 try {
+                    console.log('[restoreLayers] fetching vector data for:', meta.id, meta.remoteUrl);
                     const resp = await fetch(meta.remoteUrl);
+                    console.log('[restoreLayers] fetch status:', resp.status, 'ok:', resp.ok);
                     const data = await resp.json();
-                    const entry = { ...meta, data };
-                    userLayers.push(entry);
-                    withMap(() => addVectorLayerToMap(entry));
+                    console.log('[restoreLayers] parsed data — features:', data.features?.length, 'type:', data.type);
+                    entries.push({ entry: { ...meta, data }, addFn: addVectorLayerToMap });
                 } catch (e) {
                     console.warn('Could not restore layer:', meta.name, e);
                     showNotification(`Could not restore layer "${meta.name}"`, true);
                 }
             }
+        }));
+
+        // Wait for the map to be ready once, then add all layers synchronously
+        console.log('[restoreLayers] all fetches done, waiting for map to be ready…');
+        await new Promise(resolve => {
+            const check = () => {
+                if (editorMap.isStyleLoaded()) { console.log('[restoreLayers] map ready'); return resolve(); }
+                console.log('[restoreLayers] map not ready yet, retrying in 50ms…');
+                setTimeout(check, 50);
+            };
+            check();
+        });
+
+        for (const { entry, addFn } of entries) {
+            console.log('[restoreLayers] adding to map:', entry.id, '(', entry.category, ')');
+            userLayers.push(entry);
+            addFn(entry);
         }
+
+        console.log('[restoreLayers] done. userLayers count:', userLayers.length);
         renderLayerList();
         if (activeChapterIndex !== null) populateLayerToggles(chapters[activeChapterIndex]);
+    },
+
+    reapplyActiveChapter() {
+        if (activeChapterIndex === null) return;
+        const ch = chapters[activeChapterIndex];
+        userLayers.forEach(layer => {
+            const cfg = ch.layers?.[layer.id];
+            const visible = cfg != null;
+            getMapLayerIds(layer).forEach(lid => {
+                if (editorMap.getLayer(lid)) editorMap.setLayoutProperty(lid, 'visibility', visible ? 'visible' : 'none');
+            });
+            if (cfg) applyChapterLayerStyle(layer, cfg);
+        });
+        populateLayerToggles(ch);
+    },
+
+    selectFirstChapter() {
+        if (chapters.length > 0) selectChapter(0);
     },
 
     // Add a layer from a known URL (used by the core layers catalog)
@@ -1111,6 +1516,14 @@ function deleteChapter() {
         document.getElementById('chapter-form').style.display = 'none';
         renderChaptersList();
     }
+}
+
+function duplicateChapter(index) {
+    const copy = JSON.parse(JSON.stringify(chapters[index]));
+    copy.id = `tmp-${Date.now()}`;
+    chapters.splice(index + 1, 0, copy);
+    renderChaptersList();
+    selectChapter(index + 1);
 }
 
 // ─── Drag & Drop ──────────────────────────────────────────────────────────────
@@ -1179,8 +1592,6 @@ function setupKeyboardShortcuts() {
 
 function openExportModal() {
     if (activeChapterIndex !== null) saveCurrentChapter();
-    document.getElementById('export-story-output').value = generateStoryConfigString();
-    document.getElementById('export-map-output').value = generateMapConfigString();
     document.getElementById('export-modal').classList.add('active');
 }
 
@@ -1196,7 +1607,7 @@ function generateStoryConfigString() {
             const entry = userLayers.find(l => l.id === layerId);
             if (entry?.category === 'polygon') {
                 expandedLayers[`${layerId}-fill`] = { visible: state.visible, opacity: state.opacity, color: state.color };
-                expandedLayers[`${layerId}-outline`] = { visible: state.visible, opacity: 1, color: state.color, strokeWidth: state.strokeWidth };
+                expandedLayers[`${layerId}-outline`] = { visible: state.visible, opacity: 1, color: state.strokeColor ?? state.color, strokeWidth: state.strokeWidth };
             } else {
                 expandedLayers[layerId] = state;
             }
@@ -1244,6 +1655,7 @@ function generateMapConfigString() {
         initialView: { center: view, zoom },
         defaultBasemap: currentBasemap,
         basemaps: mapConfig.basemaps,
+
         sources,
         layers,
     };
@@ -1274,6 +1686,166 @@ function downloadFile(content, filename) {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+}
+
+function sanitiseTitle(title) {
+    return (title || 'story-map').trim()
+        .replace(/[^a-zA-Z0-9_\-. ]/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase() || 'story-map';
+}
+
+async function exportFolder(btn) {
+    if (activeChapterIndex !== null) saveCurrentChapter();
+
+    const originalLabel = btn ? btn.textContent : '';
+    if (btn) { btn.textContent = 'Preparing…'; btn.disabled = true; }
+
+    try {
+        const zip = new JSZip();
+        const title = sanitiseTitle(chapters[0]?.title || document.getElementById('map-title')?.value || '');
+        const folder = zip.folder(title);
+        // url → local filename map for rewriting
+        const urlToLocal = new Map();
+
+        // unique filename helper
+        const usedNames = new Set();
+        function uniqueName(name) {
+            if (!usedNames.has(name)) { usedNames.add(name); return name; }
+            const dot = name.lastIndexOf('.');
+            const base = dot >= 0 ? name.slice(0, dot) : name;
+            const ext  = dot >= 0 ? name.slice(dot) : '';
+            let i = 2, candidate;
+            do { candidate = `${base}-${i++}${ext}`; } while (usedNames.has(candidate));
+            usedNames.add(candidate);
+            return candidate;
+        }
+
+        const layersFolder = folder.folder('layers');
+        const imagesFolder = folder.folder('images');
+
+        // ── 1. User-uploaded layers ───────────────────────────────────────────
+        for (const entry of userLayers) {
+            // Skip core catalog layers (GitHub Pages) — they stay as remote URLs
+            const isCoreLayer = entry.remoteUrl && entry.remoteUrl.includes('mod-foundation.github.io');
+            if (isCoreLayer) continue;
+
+            if (entry.category === 'raster') {
+                const localName = uniqueName(entry.filename);
+                const localPath = `layers/geotiff/${localName}`;
+                const src = entry.remoteUrl || entry.blobUrl;
+                if (src) {
+                    try {
+                        const resp = await fetch(src);
+                        layersFolder.folder('geotiff').file(localName, await resp.blob());
+                        if (entry.remoteUrl) urlToLocal.set(entry.remoteUrl, localPath);
+                        if (entry.blobUrl)   urlToLocal.set(entry.blobUrl,   localPath);
+                    } catch (e) { console.warn('[exportFolder] raster fetch failed:', src, e); }
+                }
+            } else {
+                const localName = uniqueName(entry.filename || `${entry.id}.geojson`);
+                const localPath = `layers/${localName}`;
+                layersFolder.file(localName, JSON.stringify(entry.data, null, 2));
+                if (entry.remoteUrl) urlToLocal.set(entry.remoteUrl, localPath);
+                if (entry.blobUrl)   urlToLocal.set(entry.blobUrl,   localPath);
+                entry._localPath = localPath;
+            }
+        }
+
+        // ── 2. Chapter images ────────────────────────────────────────────────
+        const exportChapters = JSON.parse(JSON.stringify(chapters));
+        for (const ch of exportChapters) {
+            if (!ch.image || ch.image.startsWith('./images/')) continue;
+            try {
+                const resp = await fetch(ch.image);
+                const blob = await resp.blob();
+                const ext  = ch.image.split('.').pop().split('?')[0] || 'jpg';
+                const localName = uniqueName(`chapter-${ch.id}-image.${ext}`);
+                imagesFolder.file(localName, blob);
+                urlToLocal.set(ch.image, `images/${localName}`);
+                ch.image = `./images/${localName}`;
+            } catch (e) { console.warn('[exportFolder] image fetch failed:', ch.image, e); }
+        }
+
+        // ── 3. Generate storyConfig.js (with rewritten image URLs) ───────────
+        const expandedChapters = exportChapters.map(ch => {
+            const expandedLayers = {};
+            Object.entries(ch.layers || {}).forEach(([layerId, state]) => {
+                const entry = userLayers.find(l => l.id === layerId);
+                if (entry?.category === 'polygon') {
+                    expandedLayers[`${layerId}-fill`]    = { visible: state.visible, opacity: state.opacity, color: state.color };
+                    expandedLayers[`${layerId}-outline`] = { visible: state.visible, opacity: 1, color: state.strokeColor ?? state.color, strokeWidth: state.strokeWidth };
+                } else {
+                    expandedLayers[layerId] = state;
+                }
+            });
+            return { ...ch, layers: expandedLayers };
+        });
+        const storyConfigText = `// Story Map Configuration\n// Generated on ${new Date().toLocaleString()}\n\nconst storyConfig = ${JSON.stringify({ chapters: expandedChapters }, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = storyConfig;\n}`;
+
+        // ── 4. Generate mapConfig.js (vectors → local paths, rasters already local) ──
+        const sources = {};
+        const layers = [];
+        userLayers.forEach(entry => {
+            const isCoreLayer = entry.remoteUrl && entry.remoteUrl.includes('mod-foundation.github.io');
+            if (entry.category === 'raster') {
+                const rasterUrl = isCoreLayer
+                    ? `cog://${entry.remoteUrl}`
+                    : `cog://./layers/geotiff/${entry.filename}`;
+                sources[entry.sourceId] = { type: 'raster', url: rasterUrl, tileSize: 256 };
+                layers.push({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });
+            } else {
+                const dataValue = isCoreLayer
+                    ? (entry.remoteUrl || entry.data)
+                    : (entry._localPath ? `./${entry._localPath}` : entry.data);
+                sources[entry.sourceId] = { type: 'geojson', data: dataValue };
+                if (entry.category === 'line') {
+                    layers.push({ id: entry.id, type: 'line', source: entry.sourceId, paint: { 'line-color': entry.style.strokeColor, 'line-width': entry.style.strokeWidth } });
+                } else if (entry.category === 'polygon') {
+                    layers.push({ id: `${entry.id}-fill`,    type: 'fill',   source: entry.sourceId, paint: { 'fill-color': hexToRgba(entry.style.fillColor, entry.style.fillOpacity) } });
+                    layers.push({ id: `${entry.id}-outline`, type: 'line',   source: entry.sourceId, paint: { 'line-color': entry.style.strokeColor, 'line-width': entry.style.strokeWidth } });
+                } else if (entry.category === 'text') {
+                    layers.push({ id: entry.id, type: 'symbol', source: entry.sourceId, layout: { 'text-field': detectTextField(entry.data), 'text-font': ['Open Sans Regular'], 'text-size': 14 }, paint: { 'text-color': '#333333', 'text-halo-color': '#ffffff', 'text-halo-width': 1 } });
+                } else if (entry.category === 'symbol') {
+                    layers.push({ id: entry.id, type: 'circle', source: entry.sourceId, paint: { 'circle-color': '#ff6b6b', 'circle-radius': 6, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } });
+                }
+            }
+        });
+        const view = editorMap ? editorMap.getCenter().toArray() : mapConfig.initialView.center;
+        const zoom = editorMap ? editorMap.getZoom() : mapConfig.initialView.zoom;
+        const mapConfigObj = { initialView: { center: view, zoom }, defaultBasemap: currentBasemap, basemaps: mapConfig.basemaps, sources, layers };
+        const mapConfigText = `// Map Configuration\n// Generated on ${new Date().toLocaleString()}\n\nconst mapConfig = ${JSON.stringify(mapConfigObj, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = mapConfig;\n}`;
+
+        // ── 5. Add JS files + standalone viewer ──────────────────────────────
+        folder.file('storyConfig.js', storyConfigText);
+        folder.file('mapConfig.js',   mapConfigText);
+
+        const [indexHtml, viewerJs, styleCSS] = await Promise.all([
+          fetch('../standalone/index.html').then(r => r.text()),
+          fetch('../standalone/viewer.js').then(r => r.text()),
+          fetch('../viewer/story-style.css').then(r => r.text()),
+        ]);
+        folder.file('index.html',      indexHtml);
+        folder.file('viewer.js',       viewerJs);
+        folder.file('story-style.css', styleCSS);
+
+        // clean up temporary _localPath markers
+        userLayers.forEach(e => delete e._localPath);
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(zipBlob);
+        a.download = `${title}.zip`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+
+        showNotification('Folder downloaded!');
+    } catch (err) {
+        console.error('[exportFolder]', err);
+        showNotification('Export failed — see console for details.', true);
+    } finally {
+        if (btn) { btn.textContent = originalLabel; btn.disabled = false; }
+    }
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
