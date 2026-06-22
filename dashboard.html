@@ -727,7 +727,9 @@
     if (!title) return;
 
     const baseSlug = slugify(title);
-    const slug = `${baseSlug}-${Date.now().toString(36)}`;
+    const { data: existing } = await supabase.from('story_maps').select('slug').eq('slug', baseSlug).maybeSingle();
+    if (existing) { toast('A map with this name already exists. Please choose a different title.', true); return; }
+    const slug = baseSlug;
 
     const { data, error } = await supabase
       .from('story_maps')
