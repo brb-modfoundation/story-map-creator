@@ -29,7 +29,7 @@ serve(async (req) => {
     if (!user) return json({ error: 'Unauthorized' }, 401);
 
     // ── Load map ─────────────────────────────────────────────
-    const { mapId } = await req.json();
+    const { mapId, action } = await req.json();
     const { data: map, error: mapErr } = await supabase
       .from('story_maps')
       .select('slug, title, story_config, map_config')
@@ -43,6 +43,40 @@ serve(async (req) => {
     const storyConfig = map.story_config as any;
     const mapConfig   = map.map_config   as any;
     const userMeta    = (mapConfig?.userLayersMeta ?? []) as any[];
+
+    // ── Unpublish: remove published/{slug}/ from GitHub ──────
+    if (action === 'unpublish') {
+      const gh = makeGh();
+      const refData    = await gh(`/git/ref/heads/${BRANCH}`);
+      const parentSha  = refData.object.sha as string;
+      const commitData = await gh(`/git/commits/${parentSha}`);
+      const baseTreeSha = commitData.tree.sha as string;
+
+      // Get full recursive tree to find files under published/{slug}/
+      const treeData = await gh(`/git/trees/${baseTreeSha}?recursive=1`);
+      const prefix = `published/${slug}/`;
+      const remaining = (treeData.tree as any[]).filter(
+        (item: any) => item.type === 'blob' && !item.path.startsWith(prefix)
+      ).map((item: any) => ({ path: item.path, mode: item.mode, type: item.type, sha: item.sha }));
+
+      const newTree = await gh('/git/trees', {
+        method: 'POST',
+        body: JSON.stringify({ tree: remaining }),
+      });
+      const newCommit = await gh('/git/commits', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: `Unpublish story map: ${map.title} (${slug})`,
+          tree: newTree.sha,
+          parents: [parentSha],
+        }),
+      });
+      await gh(`/git/refs/heads/${BRANCH}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ sha: newCommit.sha }),
+      });
+      return json({ ok: true });
+    }
 
     // ── Download chapter images ───────────────────────────────
     const imageFiles: Record<string, Uint8Array> = {};   // localName → bytes
@@ -171,20 +205,7 @@ serve(async (req) => {
     }
 
     // ── Push via GitHub Git Tree API ─────────────────────────
-    const gh = (path: string, opts?: RequestInit) =>
-      fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}${path}`, {
-        ...opts,
-        headers: {
-          Authorization: `Bearer ${GITHUB_TOKEN}`,
-          Accept: 'application/vnd.github+json',
-          'Content-Type': 'application/json',
-          ...(opts?.headers ?? {}),
-        },
-      }).then(async r => {
-        const body = await r.json();
-        if (!r.ok) throw new Error(`GitHub ${r.status}: ${JSON.stringify(body)}`);
-        return body;
-      });
+    const gh = makeGh();
 
     // 1. Get current branch tip
     const refData   = await gh(`/git/ref/heads/${BRANCH}`);
@@ -241,6 +262,23 @@ serve(async (req) => {
     return json({ error: err.message ?? 'Internal error' }, 500);
   }
 });
+
+function makeGh() {
+  return (path: string, opts?: RequestInit) =>
+    fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}${path}`, {
+      ...opts,
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        ...(opts?.headers ?? {}),
+      },
+    }).then(async r => {
+      const body = await r.json();
+      if (!r.ok) throw new Error(`GitHub ${r.status}: ${JSON.stringify(body)}`);
+      return body;
+    });
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

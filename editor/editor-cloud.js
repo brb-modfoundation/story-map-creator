@@ -180,17 +180,34 @@ window.cloudTogglePublish = async () => {
       updatePublishButton(false);
     }
   } else {
-    // Unpublishing: just update Supabase flag
-    const { error } = await supabase
-      .from('story_maps')
-      .update({ published: false, updated_at: new Date().toISOString() })
-      .eq('id', MAP_ID);
-    if (error) {
-      if (typeof window.showNotification === 'function') window.showNotification('Unpublish failed: ' + error.message, true);
-    } else {
+    // Unpublishing: remove from GitHub then update Supabase
+    btn.textContent = '⏳ Unpublishing…';
+    if (typeof window.showNotification === 'function') window.showNotification('Removing from GitHub…');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/publish-to-github`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ mapId: MAP_ID, action: 'unpublish' }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error ?? `HTTP ${resp.status}`);
+
+      const { error } = await supabase
+        .from('story_maps')
+        .update({ published: false, updated_at: new Date().toISOString() })
+        .eq('id', MAP_ID);
+      if (error) throw new Error(error.message);
+
       currentMap.published = false;
       updatePublishButton(false);
       if (typeof window.showNotification === 'function') window.showNotification('Map unpublished.');
+    } catch (e) {
+      if (typeof window.showNotification === 'function') window.showNotification('Unpublish failed: ' + e.message, true);
+      updatePublishButton(true);
     }
   }
 
