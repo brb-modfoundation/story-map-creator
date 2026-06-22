@@ -1,1 +1,8 @@
-project_id = "ifwmzmcnozyyavjjyqrn"
+[api]
+enabled = true
+
+[db]
+port = 54322
+
+[functions.publish-to-github]
+enabled = true
