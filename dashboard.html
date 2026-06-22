@@ -671,9 +671,9 @@
         <div class="map-card-footer">
           <span class="${map.published ? 'badge-published' : 'badge-draft'}">${map.published ? '● Published' : '○ Draft'}</span>
           <button class="btn-card btn-edit" onclick="openEditor('${map.id}')">Edit</button>
+          <button class="btn-card btn-view" onclick="viewMap('${map.id}', ${map.published}, '${map.slug}')">View</button>
           ${map.published
-            ? `<button class="btn-card btn-view" onclick="viewMap('${map.slug}')">View</button>
-               <button class="btn-card btn-unpublish" onclick="togglePublish('${map.id}', false, this)">Unpublish</button>`
+            ? `<button class="btn-card btn-unpublish" onclick="togglePublish('${map.id}', false, this)">Unpublish</button>`
             : `<button class="btn-card btn-publish" onclick="togglePublish('${map.id}', true, this)">Publish</button>`}
           <button class="btn-card btn-delete" onclick="deleteMap('${map.id}', this)">Delete</button>
         </div>
@@ -686,8 +686,11 @@
     window.location.href = `editor/editor.html?mapId=${mapId}`;
   };
 
-  window.viewMap = (slug) => {
-    window.open(`viewer/view.html?id=${slug}`, '_blank');
+  window.viewMap = (mapId, published, slug) => {
+    const url = published
+      ? `viewer/view.html?id=${slug}`
+      : `viewer/view.html?mapId=${mapId}`;
+    window.open(url, '_blank');
   };
 
   window.togglePublish = async (mapId, publish, btn) => {

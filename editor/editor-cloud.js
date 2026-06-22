@@ -1,7 +1,7 @@
 // editor-cloud.js — Supabase integration for the Story Map Editor
 // Handles: load/save/publish, dataset uploads to Storage, MOD core layers catalog
 
-import { supabase, uploadDataset } from '../config/supabase.js';
+import { supabase, uploadDataset, SUPABASE_URL } from '../config/supabase.js';
 
 const params = new URLSearchParams(window.location.search);
 const MAP_ID = params.get('mapId');
@@ -59,6 +59,7 @@ window._cloudActive = true;   // tells editor.js not to auto-dismiss the loading
 
   document.getElementById('header-map-title').textContent = data.title;
   document.getElementById('cloud-publish-btn').style.display = '';
+  document.getElementById('cloud-view-btn').style.display = '';
   updatePublishButton(data.published);
 
   // Restore chapters
@@ -153,15 +154,40 @@ window.cloudTogglePublish = async () => {
   updatePublishButton(newState);
 
   if (newState) {
-    const url = `${window.location.origin}${window.location.pathname.replace('editor.html', 'view.html')}?id=${currentMap.slug}`;
-    setTimeout(() => {
-      if (confirm(`Map published!\n\nShare URL:\n${url}\n\nCopy to clipboard?`)) {
-        navigator.clipboard.writeText(url).catch(() => {});
-      }
-    }, 200);
+    if (typeof window.showNotification === 'function') window.showNotification('Publishing to GitHub…');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/publish-to-github`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ mapId: MAP_ID }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error ?? `HTTP ${resp.status}`);
+      const ghUrl = result.url;
+      setTimeout(() => {
+        if (confirm(`Published!\n\nLive at:\n${ghUrl}\n\nCopy link to clipboard?`)) {
+          navigator.clipboard.writeText(ghUrl).catch(() => {});
+        }
+      }, 200);
+    } catch (e) {
+      if (typeof window.showNotification === 'function') window.showNotification('GitHub publish failed: ' + e.message, true);
+    }
   } else if (typeof window.showNotification === 'function') {
     window.showNotification('Map unpublished.');
   }
+};
+
+// ── Open viewer (without publishing to GitHub) ────────────
+window.cloudOpenView = () => {
+  if (!MAP_ID) {
+    if (typeof window.showNotification === 'function') window.showNotification('Save the map first to preview it.', true);
+    return;
+  }
+  window.open(`../viewer/view.html?mapId=${MAP_ID}`, '_blank');
 };
 
 function updatePublishButton(published) {

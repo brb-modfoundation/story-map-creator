@@ -13,6 +13,19 @@
     <link rel="stylesheet" href="./editor.css">
     <style>
       .cloud-status { font-size: 0.78rem; color: #7fb3d3; }
+      .btn-cloud-view {
+        background: #2980b9;
+        color: white;
+        border: none;
+        padding: 0.35rem 0.9rem;
+        border-radius: 5px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.2s;
+      }
+      .btn-cloud-view:hover { background: #2471a3; }
       .btn-cloud-publish {
         background: #9b59b6;
         color: white;
@@ -49,6 +62,7 @@
             <div class="header-actions">
                 <button id="export-btn" class="btn btn-secondary">Export</button>
                 <button id="save-all-btn" class="btn btn-success">Save</button>
+                <button class="btn-cloud-view" id="cloud-view-btn" onclick="cloudOpenView()" style="display:none">View</button>
                 <button class="btn-cloud-publish" id="cloud-publish-btn" onclick="cloudTogglePublish()" style="display:none">Publish</button>
             </div>
         </header>

@@ -16,14 +16,20 @@ let isHoldingMap        = false;
 
 // ── Supabase data load ────────────────────────────────────────────────────────
 const params = new URLSearchParams(window.location.search);
-const slug = params.get('id');
+const slug   = params.get('id');
+const mapId  = params.get('mapId');  // preview mode — bypasses published check
 
-const { data, error } = await supabase
+let query = supabase
   .from('story_maps')
-  .select('title, story_config, map_config, published')
-  .eq('slug', slug)
-  .eq('published', true)
-  .single();
+  .select('title, story_config, map_config, published');
+
+if (mapId) {
+  query = query.eq('id', mapId);
+} else {
+  query = query.eq('slug', slug).eq('published', true);
+}
+
+const { data, error } = await query.single();
 
 if (error || !data) {
   document.getElementById('loading-screen').style.display = 'none';
