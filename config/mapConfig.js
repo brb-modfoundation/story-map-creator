@@ -1,5 +1,5 @@
 // Map Configuration — standalone basemap options for Story Creator
-const MAPBOX_TOKEN = 'YOUR_MAPBOX_TOKEN_HERE'; // set your token here (do not commit)
+const MAPBOX_TOKEN = 'pk.eyJ1IjoibW9kLWZvdW5kYXRpb24iLCJhIjoiY21ncnNrcmx4MXdlOTJqc2FjNW85ZnR3NSJ9.0Ha_bpb4AJ-O2pvIumHu7A'; // set your token here (do not commit)
 
 const mapConfig = {
   initialView: {
