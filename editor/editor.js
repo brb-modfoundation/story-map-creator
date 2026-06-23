@@ -158,10 +158,10 @@ function initializeUI() {
     document.getElementById('save-all-btn').addEventListener('click', saveAllChanges);
 
     document.getElementById('export-btn').addEventListener('click', openExportModal);
-    document.getElementById('copy-story-btn').addEventListener('click', () => copyTextarea('export-story-output'));
-    document.getElementById('copy-map-btn').addEventListener('click', () => copyTextarea('export-map-output'));
-    document.getElementById('download-story-btn').addEventListener('click', () => downloadFile(generateStoryConfigString(), 'storyConfig.js'));
-    document.getElementById('download-map-btn').addEventListener('click', () => downloadFile(generateMapConfigString(), 'mapConfig.js'));
+    document.getElementById('copy-story-btn')?.addEventListener('click', () => copyTextarea('export-story-output'));
+    document.getElementById('copy-map-btn')?.addEventListener('click', () => copyTextarea('export-map-output'));
+    document.getElementById('download-story-btn')?.addEventListener('click', () => downloadFile(generateStoryConfigString(), 'storyConfig.js'));
+    document.getElementById('download-map-btn')?.addEventListener('click', () => downloadFile(generateMapConfigString(), 'mapConfig.js'));
 
     document.querySelector('.close-modal').addEventListener('click', closeExportModal);
     document.getElementById('export-modal').addEventListener('click', (e) => {
@@ -188,25 +188,33 @@ function updateImageChapterPreview(url) {
 }
 
 function initChapterImageUpload() {
+    console.log('[initChapterImageUpload] called');
     const fileInput = document.getElementById('chapter-image-file');
+    console.log('[initChapterImageUpload] fileInput element:', fileInput);
     const hiddenUrl = document.getElementById('chapter-image');
     const preview   = document.getElementById('chapter-image-preview');
     const thumb     = document.getElementById('chapter-image-thumb');
     const clearBtn  = document.getElementById('chapter-image-clear');
 
     fileInput.addEventListener('change', (e) => {
+        console.log('[imageUpload] file input changed, files:', e.target.files.length);
         const file = e.target.files[0];
-        if (!file) return;
+        if (!file) { console.log('[imageUpload] no file selected'); return; }
+        console.log('[imageUpload] file selected:', file.name, file.type, file.size);
         fileInput.value = '';
+        console.log('[imageUpload] opening crop modal');
         openCropModal(file, async (croppedBlob) => {
+            console.log('[imageUpload] crop applied, blob size:', croppedBlob.size);
             const croppedFile = new File([croppedBlob], file.name, { type: 'image/jpeg' });
             const localUrl = URL.createObjectURL(croppedBlob);
             thumb.src = localUrl;
             preview.style.display = 'block';
             hiddenUrl.value = localUrl;
             updateImageChapterPreview(localUrl);
+            console.log('[imageUpload] local preview set, uploading to cloud…');
 
             const remoteUrl = await window._cloudUploadDataset?.(croppedFile);
+            console.log('[imageUpload] cloud upload result:', remoteUrl);
             if (remoteUrl) {
                 hiddenUrl.value = remoteUrl;
                 thumb.src = remoteUrl;
@@ -225,6 +233,7 @@ function initChapterImageUpload() {
 }
 
 function openCropModal(file, onApply) {
+    console.log('[cropModal] opening for file:', file.name);
     const RATIO = 16 / 9;
     const modal   = document.getElementById('image-crop-modal');
     const canvas  = document.getElementById('image-crop-canvas');
@@ -232,12 +241,14 @@ function openCropModal(file, onApply) {
     const handle  = document.getElementById('crop-handle-br');
     const applyBtn  = document.getElementById('image-crop-apply');
     const cancelBtn = document.getElementById('image-crop-cancel');
+    console.log('[cropModal] elements — modal:', !!modal, 'canvas:', !!canvas, 'box:', !!box, 'applyBtn:', !!applyBtn);
     const ctx = canvas.getContext('2d');
 
     const img = new Image();
     const reader = new FileReader();
-    reader.onload = (ev) => { img.src = ev.target.result; };
+    reader.onload = (ev) => { console.log('[cropModal] file read as DataURL, setting img.src'); img.src = ev.target.result; };
     img.onload = () => {
+        console.log('[cropModal] image loaded, natural size:', img.naturalWidth, 'x', img.naturalHeight);
         // Scale image to fit within 75vw × 70vh
         const maxW = Math.min(window.innerWidth * 0.75, 1200);
         const maxH = Math.min(window.innerHeight * 0.70, 800);
