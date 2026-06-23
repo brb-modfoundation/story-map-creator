@@ -46,7 +46,7 @@ function initializeMap() {
         container: 'editor-map',
         style: {
             version: 8,
-            glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+            glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
             sources: {
                 basemap: {
                     type: 'raster',
@@ -379,6 +379,20 @@ function initUploadPanel() {
         overlay.style.display = 'none';
         [...e.dataTransfer.files].forEach(f => handleFileUpload(f));
     });
+
+    const labelsInput = document.getElementById('labels-file-input');
+    labelsInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handleFileUpload(file, { forceCategory: 'labels' });
+        labelsInput.value = '';
+    });
+
+    const viewpointsInput = document.getElementById('viewpoints-file-input');
+    viewpointsInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handleFileUpload(file, { forceCategory: 'viewpoints' });
+        viewpointsInput.value = '';
+    });
 }
 
 // ─── Layer Upload ─────────────────────────────────────────────────────────────
@@ -406,14 +420,14 @@ function detectCategory(data) {
     return sorted[0]?.[0] || 'symbol';
 }
 
-function handleFileUpload(file) {
+function handleFileUpload(file, opts = {}) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'tif' || ext === 'tiff') {
         handleRasterUpload(file);
     } else if (ext === 'kml') {
-        handleKmlUpload(file);
+        handleKmlUpload(file, opts);
     } else if (ext === 'geojson' || ext === 'json') {
-        handleGeoJsonUpload(file);
+        handleGeoJsonUpload(file, opts);
     } else {
         showNotification(`Unsupported file type: .${ext}`, true);
     }
@@ -459,7 +473,7 @@ function handleRasterUpload(file) {
     reader.readAsArrayBuffer(file);
 }
 
-function handleGeoJsonUpload(file) {
+function handleGeoJsonUpload(file, opts = {}) {
     const { layerId, sourceId } = idsFromFilename(file.name);
     const name = file.name.replace(/\.[^.]+$/, '');
     const reader = new FileReader();
@@ -469,12 +483,12 @@ function handleGeoJsonUpload(file) {
             showNotification('Invalid GeoJSON — could not parse file', true);
             return;
         }
-        addVectorEntry(layerId, sourceId, name, file.name, data);
+        addVectorEntry(layerId, sourceId, name, file.name, data, opts);
     };
     reader.readAsText(file);
 }
 
-function handleKmlUpload(file) {
+function handleKmlUpload(file, opts = {}) {
     const { layerId, sourceId } = idsFromFilename(file.name);
     const name = file.name.replace(/\.[^.]+$/, '');
     const reader = new FileReader();
@@ -488,13 +502,13 @@ function handleKmlUpload(file) {
             showNotification('Could not parse KML file', true);
             return;
         }
-        addVectorEntry(layerId, sourceId, name, file.name, data);
+        addVectorEntry(layerId, sourceId, name, file.name, data, opts);
     };
     reader.readAsText(file);
 }
 
-function addVectorEntry(layerId, sourceId, name, filename, data) {
-    const category = detectCategory(data);
+function addVectorEntry(layerId, sourceId, name, filename, data, opts = {}) {
+    const category = opts.forceCategory || detectCategory(data);
     const defaultStyle = category === 'line'
         ? { strokeColor: '#0d6aff', strokeWidth: 2 }
         : category === 'polygon'
@@ -503,7 +517,7 @@ function addVectorEntry(layerId, sourceId, name, filename, data) {
     const entry = { id: layerId, sourceId, name, filename, category, data, style: defaultStyle };
     userLayers.push(entry);
     withMap(() => addVectorLayerToMap(entry));
-    registerLayerInActiveChapter(layerId);
+    if (category !== 'labels' && category !== 'viewpoints') registerLayerInActiveChapter(layerId);
     renderLayerList();
     showNotification(`"${name}" added`);
 
@@ -596,6 +610,59 @@ function addVectorLayerToMap(entry) {
         } else {
             console.log('[addVectorLayerToMap] outline layer already exists:', `${entry.id}-outline`);
         }
+    } else if (entry.category === 'labels') {
+        editorMap.addLayer({
+            id: entry.id, type: 'symbol', source: entry.sourceId,
+            layout: {
+                'text-field': ['get', 'name'],
+                'text-font': ['Open Sans Bold'],
+                'text-size': 15,
+                'text-anchor': 'left',
+                'text-allow-overlap': true,
+                'text-transform': 'uppercase',
+                'text-offset': [0.5, 0]
+            },
+            paint: { 'text-color': '#0d6aff', 'text-halo-color': '#f9ea46', 'text-halo-width': 6 },
+        });
+    } else if (entry.category === 'viewpoints') {
+        const doAdd = () => {
+            if (editorMap.getLayer(entry.id)) return;
+            try {
+                editorMap.addLayer({
+                    id: entry.id, type: 'symbol', source: entry.sourceId,
+                    layout: {
+                        'icon-image': 'viewpoint-icon',
+                        'icon-size': 0.15,
+                        'icon-rotation-alignment': 'map',
+                        'icon-rotate': ['get', 'angle'],
+                        'icon-allow-overlap': true,
+                    },
+                    paint: { 'icon-opacity': 1 },
+                });
+            } catch (e) {
+                console.error('[addVectorLayerToMap] viewpoints addLayer failed:', e);
+            }
+        };
+        const afterAdd = () => {
+            if (activeChapterIndex !== null && editorMap.getLayer(entry.id)) {
+                editorMap.setFilter(entry.id, ['==', ['to-number', ['get', 'chapter']], activeChapterIndex]);
+                editorMap.setLayoutProperty(entry.id, 'visibility', 'visible');
+            }
+        };
+        if (editorMap.hasImage('viewpoint-icon')) {
+            doAdd();
+            afterAdd();
+        } else {
+            const img = new Image();
+            img.onload = () => {
+                console.log('[addVectorLayerToMap] viewpoint.png loaded, adding image + layer');
+                if (!editorMap.hasImage('viewpoint-icon')) editorMap.addImage('viewpoint-icon', img);
+                doAdd();
+                afterAdd();
+            };
+            img.onerror = (e) => console.error('[addVectorLayerToMap] viewpoint.png failed to load', e);
+            img.src = '../images/viewpoint.png';
+        }
     } else if (entry.category === 'text') {
         const tf = detectTextField(entry.data);
         editorMap.addLayer({
@@ -629,12 +696,120 @@ function removeUserLayer(layerId) {
 
 function renderLayerList() {
     const container = document.getElementById('layer-list');
+    const labelsContainer = document.getElementById('labels-layer-list');
+    const viewpointsContainer = document.getElementById('viewpoints-layer-list');
+
+    const regularLayers    = userLayers.filter(l => l.category !== 'labels' && l.category !== 'viewpoints');
+    const labelLayers      = userLayers.filter(l => l.category === 'labels');
+    const viewpointLayers  = userLayers.filter(l => l.category === 'viewpoints');
+
     container.innerHTML = '';
-    if (userLayers.length === 0) {
+    if (regularLayers.length === 0) {
         container.innerHTML = '<p class="layer-list-empty">No layers yet. Add a file or drop onto the map.</p>';
+    } else {
+        regularLayers.forEach(layer => {
+            const index = userLayers.indexOf(layer);
+            container.appendChild(buildLayerListItem(layer, index));
+        });
+    }
+
+    if (labelsContainer) {
+        labelsContainer.innerHTML = '';
+        if (labelLayers.length === 0) {
+            labelsContainer.innerHTML = '<p class="layer-list-empty" style="font-size:0.72rem">No labels uploaded yet.</p>';
+        } else {
+            labelLayers.forEach(layer => renderLabelsFeatureList(layer, labelsContainer));
+        }
+    }
+
+    if (viewpointsContainer) {
+        viewpointsContainer.innerHTML = '';
+        if (viewpointLayers.length === 0) {
+            viewpointsContainer.innerHTML = '<p class="layer-list-empty" style="font-size:0.72rem">No viewpoints uploaded yet.</p>';
+        } else {
+            viewpointLayers.forEach(layer => renderViewpointsFeatureList(layer, viewpointsContainer));
+        }
+    }
+}
+
+function renderLabelsFeatureList(layer, container) {
+    const header = document.createElement('div');
+    header.className = 'labels-file-header';
+    const fname = document.createElement('span');
+    fname.textContent = layer.name;
+    fname.className = 'labels-file-name';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-file-btn';
+    removeBtn.title = 'Remove labels layer';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => removeUserLayer(layer.id));
+    header.append(fname, removeBtn);
+    container.appendChild(header);
+
+    const features = layer.data?.features ?? [];
+    if (features.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'layer-list-empty';
+        empty.style.fontSize = '0.72rem';
+        empty.textContent = 'No features found.';
+        container.appendChild(empty);
         return;
     }
-    userLayers.forEach((layer, index) => container.appendChild(buildLayerListItem(layer, index)));
+
+    features.forEach(f => {
+        const chapter = f.properties?.chapter;
+        const name    = f.properties?.name ?? '(unnamed)';
+        const row = document.createElement('div');
+        row.className = 'labels-feature-row';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'labels-feature-name';
+        nameEl.textContent = name;
+        const badge = document.createElement('span');
+        badge.className = 'labels-chapter-badge';
+        badge.textContent = chapter != null ? 'Ch ' + chapter : '—';
+        row.append(nameEl, badge);
+        container.appendChild(row);
+    });
+}
+
+function renderViewpointsFeatureList(layer, container) {
+    const header = document.createElement('div');
+    header.className = 'labels-file-header';
+    const fname = document.createElement('span');
+    fname.textContent = layer.name;
+    fname.className = 'labels-file-name';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-file-btn';
+    removeBtn.title = 'Remove viewpoints layer';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => removeUserLayer(layer.id));
+    header.append(fname, removeBtn);
+    container.appendChild(header);
+
+    const features = layer.data?.features ?? [];
+    if (features.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'layer-list-empty';
+        empty.style.fontSize = '0.72rem';
+        empty.textContent = 'No features found.';
+        container.appendChild(empty);
+        return;
+    }
+
+    features.forEach(f => {
+        const chapter = f.properties?.chapter;
+        const angle   = f.properties?.angle;
+        const row = document.createElement('div');
+        row.className = 'labels-feature-row';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'labels-feature-name';
+        nameEl.textContent = (angle != null ? angle + '°' : '?');
+        const badge = document.createElement('span');
+        badge.className = 'labels-chapter-badge';
+        badge.textContent = chapter != null ? 'Ch ' + chapter : '—';
+        row.append(nameEl, badge);
+        container.appendChild(row);
+    });
 }
 
 function buildLayerListItem(layer, index) {
@@ -838,7 +1013,15 @@ function selectChapter(index) {
         }
     }
 
+    const chNum = index;
     userLayers.forEach(layer => {
+        if (layer.category === 'labels' || layer.category === 'viewpoints') {
+            if (editorMap.getLayer(layer.id)) {
+                editorMap.setFilter(layer.id, ['==', ['to-number', ['get', 'chapter']], chNum]);
+                editorMap.setLayoutProperty(layer.id, 'visibility', 'visible');
+            }
+            return;
+        }
         const cfg = ch.layers?.[layer.id];
         const visible = cfg != null;
         getMapLayerIds(layer).forEach(lid => {
@@ -1295,13 +1478,17 @@ function saveAllChanges() {
 
 // Expose config generators so editor-cloud.js can read them
 window._getStoryConfigJSON = () => {
-    const exportChapters = chapters.map(ch => {
+    const exportChapters = chapters.map((ch, i) => {
         const expandedLayers = {};
         Object.entries(ch.layers || {}).forEach(([layerId, state]) => {
             const entry = userLayers.find(l => l.id === layerId);
             if (entry?.category === 'polygon') {
                 expandedLayers[`${layerId}-fill`] = { visible: state.visible, opacity: state.opacity, color: state.color };
                 expandedLayers[`${layerId}-outline`] = { visible: state.visible, opacity: 1, color: state.strokeColor ?? state.color, strokeWidth: state.strokeWidth };
+            } else if (entry?.category === 'labels' || entry?.category === 'viewpoints') {
+                if (state.visible) {
+                    expandedLayers[layerId] = { visible: true, opacity: state.opacity ?? 1, chapterFilter: i };
+                }
             } else {
                 expandedLayers[layerId] = state;
             }
@@ -1323,7 +1510,11 @@ window._getMapConfigJSON = () => {
             // Prefer the cloud/static URL — MapLibre accepts a URL string as geojson data.
             // Falls back to embedding the full data if no remote URL exists.
             sources[entry.sourceId] = { type: 'geojson', data: entry.remoteUrl || entry.data };
-            if (entry.category === 'line') {
+            if (entry.category === 'labels') {
+                layers.push(_buildLabelLayer(entry.id, entry.sourceId));
+            } else if (entry.category === 'viewpoints') {
+                layers.push(_buildViewpointsLayer(entry.id, entry.sourceId));
+            } else if (entry.category === 'line') {
                 layers.push({ id: entry.id, type: 'line', source: entry.sourceId, paint: { 'line-color': entry.style.strokeColor, 'line-width': entry.style.strokeWidth } });
             } else if (entry.category === 'polygon') {
                 layers.push({ id: `${entry.id}-fill`, type: 'fill', source: entry.sourceId, paint: { 'fill-color': hexToRgba(entry.style.fillColor, entry.style.fillOpacity) } });
@@ -1351,6 +1542,40 @@ window._getMapConfigJSON = () => {
         })),
     };
 };
+
+function _buildLabelLayer(layerId, sourceId) {
+    return {
+        id: layerId,
+        type: 'symbol',
+        source: sourceId,
+        layout: {
+            'text-field': ['get', 'name'],
+            'text-font': ['Open Sans Bold'],
+            'text-size': 15,
+            'text-anchor': 'left',
+            'text-allow-overlap': true,
+            'text-transform': 'uppercase',
+            'text-offset': [0.5, 0],
+        },
+        paint: { 'text-color': '#0d6aff', 'text-halo-color': '#f9ea46', 'text-halo-width': 6 },
+    };
+}
+
+function _buildViewpointsLayer(layerId, sourceId) {
+    return {
+        id: layerId,
+        type: 'symbol',
+        source: sourceId,
+        layout: {
+            'icon-image': 'viewpoint-icon',
+            'icon-size': 0.15,
+            'icon-rotation-alignment': 'map',
+            'icon-rotate': ['get', 'angle'],
+            'icon-allow-overlap': true,
+        },
+        paint: { 'icon-opacity': 1 },
+    };
+}
 
 // ─── Editor API for the cloud module (editor-cloud.js) ───────────────────────
 
@@ -1768,13 +1993,17 @@ async function exportFolder(btn) {
         }
 
         // ── 3. Generate storyConfig.js (with rewritten image URLs) ───────────
-        const expandedChapters = exportChapters.map(ch => {
+        const expandedChapters = exportChapters.map((ch, i) => {
             const expandedLayers = {};
             Object.entries(ch.layers || {}).forEach(([layerId, state]) => {
                 const entry = userLayers.find(l => l.id === layerId);
                 if (entry?.category === 'polygon') {
                     expandedLayers[`${layerId}-fill`]    = { visible: state.visible, opacity: state.opacity, color: state.color };
                     expandedLayers[`${layerId}-outline`] = { visible: state.visible, opacity: 1, color: state.strokeColor ?? state.color, strokeWidth: state.strokeWidth };
+                } else if (entry?.category === 'labels' || entry?.category === 'viewpoints') {
+                    if (state.visible) {
+                        expandedLayers[layerId] = { visible: true, opacity: state.opacity ?? 1, chapterFilter: i };
+                    }
                 } else {
                     expandedLayers[layerId] = state;
                 }
@@ -1799,7 +2028,11 @@ async function exportFolder(btn) {
                     ? (entry.remoteUrl || entry.data)
                     : (entry._localPath ? `./${entry._localPath}` : entry.data);
                 sources[entry.sourceId] = { type: 'geojson', data: dataValue };
-                if (entry.category === 'line') {
+                if (entry.category === 'labels') {
+                    layers.push(_buildLabelLayer(entry.id, entry.sourceId));
+                } else if (entry.category === 'viewpoints') {
+                    layers.push(_buildViewpointsLayer(entry.id, entry.sourceId));
+                } else if (entry.category === 'line') {
                     layers.push({ id: entry.id, type: 'line', source: entry.sourceId, paint: { 'line-color': entry.style.strokeColor, 'line-width': entry.style.strokeWidth } });
                 } else if (entry.category === 'polygon') {
                     layers.push({ id: `${entry.id}-fill`,    type: 'fill',   source: entry.sourceId, paint: { 'fill-color': hexToRgba(entry.style.fillColor, entry.style.fillOpacity) } });
@@ -1820,14 +2053,18 @@ async function exportFolder(btn) {
         folder.file('storyConfig.js', storyConfigText);
         folder.file('mapConfig.js',   mapConfigText);
 
-        const [indexHtml, viewerJs, styleCSS] = await Promise.all([
+        const [indexHtml, viewerJs, styleCSS, quoteIconBlob, viewpointIconBlob] = await Promise.all([
           fetch('../standalone/index.html').then(r => r.text()),
           fetch('../standalone/viewer.js').then(r => r.text()),
           fetch('../viewer/story-style.css').then(r => r.text()),
+          fetch('../images/quote-icon.png').then(r => r.blob()),
+          fetch('../images/viewpoint.png').then(r => r.blob()),
         ]);
         folder.file('index.html',      indexHtml);
         folder.file('viewer.js',       viewerJs);
         folder.file('story-style.css', styleCSS);
+        folder.file('images/quote-icon.png', quoteIconBlob);
+        folder.file('images/viewpoint.png', viewpointIconBlob);
 
         // clean up temporary _localPath markers
         userLayers.forEach(e => delete e._localPath);

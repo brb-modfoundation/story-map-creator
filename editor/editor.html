@@ -99,6 +99,26 @@
                             <span class="layers-drop-hint">or drop onto map</span>
                         </div>
                         <div id="layer-list" class="layer-list"></div>
+                        <div class="labels-upload-section">
+                            <div class="labels-upload-header">
+                                <span>Map Labels</span>
+                                <label class="upload-btn-label upload-btn-label--small">
+                                    + Upload labels.geojson
+                                    <input type="file" id="labels-file-input" accept=".geojson,.json" hidden>
+                                </label>
+                            </div>
+                            <div id="labels-layer-list" class="layer-list"></div>
+                        </div>
+                        <div class="viewpoints-upload-section">
+                            <div class="viewpoints-upload-header">
+                                <span>Viewpoints</span>
+                                <label class="upload-btn-label upload-btn-label--small">
+                                    + Upload viewpoints.geojson
+                                    <input type="file" id="viewpoints-file-input" accept=".geojson,.json" hidden>
+                                </label>
+                            </div>
+                            <div id="viewpoints-layer-list" class="layer-list"></div>
+                        </div>
                     </div>
                 </div>
             </aside>

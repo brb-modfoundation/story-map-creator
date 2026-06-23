@@ -53,7 +53,7 @@ function initMap() {
     container: 'map',
     style: {
       version: 8,
-      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+      glyphs: 'https://cdn.jsdelivr.net/gh/openmaptiles/fonts@gh-pages/{fontstack}/{range}.pbf',
       sources: {},
       layers: []
     },
@@ -124,6 +124,9 @@ function initMap() {
   map.getCanvas().addEventListener('mouseleave', handleMapHoldEnd);
 
   map.on('load', () => {
+    map.loadImage('../images/viewpoint.png', (err, img) => {
+      if (!err && img) map.addImage('viewpoint-icon', img);
+    });
     addAllLayers();
     document.getElementById('loading-screen').style.display = 'none';
     initScrollytelling();
@@ -156,23 +159,81 @@ function addAllLayers() {
     });
   }
 
-  // Additional layers from map config with opacity transitions
+  const labelsMetaIds = new Set(
+    (_mapConfig.userLayersMeta ?? []).filter(m => m.category === 'labels').map(m => m.id)
+  );
+  const labelsSubLayerPattern = /^.+-ch\d+$|^\d+-label$/;
+
+  // Additional layers from map config (skip labels — added last so they render on top)
   if (_mapConfig.layers) {
     _mapConfig.layers.forEach(layerConfig => {
+      if (labelsMetaIds.has(layerConfig.id)) return;       // already added as base layer
+      if (labelsSubLayerPattern.test(layerConfig.id)) return; // skip old sub-layers
       if (map.getLayer(layerConfig.id)) return;
       const layerWithTransition = { ...layerConfig, paint: { ...(layerConfig.paint ?? {}) } };
       const t = layerWithTransition.type;
       if (t === 'raster') layerWithTransition.paint['raster-opacity-transition'] = { duration: 1500 };
       else if (t === 'line')   layerWithTransition.paint['line-opacity-transition']   = { duration: 1500 };
       else if (t === 'fill')   layerWithTransition.paint['fill-opacity-transition']   = { duration: 1500 };
-      else if (t === 'symbol') layerWithTransition.paint['icon-opacity-transition']   = { duration: 1500 };
+      else if (t === 'symbol') {
+        layerWithTransition.paint['icon-opacity-transition'] = { duration: 1500 };
+        layerWithTransition.paint['text-opacity-transition'] = { duration: 1500 };
+      }
       map.addLayer(layerWithTransition);
     });
-    // Hide all user layers initially — chapters show them selectively via setActiveChapter()
+    // Hide all non-labels user layers initially
     _mapConfig.layers.forEach(l => {
+      if (labelsSubLayerPattern.test(l.id)) return;
       if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
     });
   }
+
+  // Add labels last so they render on top of all other layers
+  (_mapConfig.userLayersMeta ?? []).filter(m => m.category === 'labels').forEach(meta => {
+    if (map.getSource(meta.sourceId) && !map.getLayer(meta.id)) {
+      map.addLayer({
+        id: meta.id, type: 'symbol', source: meta.sourceId,
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Open Sans Bold'],
+          'text-size': 17,
+          'text-anchor': 'left',
+          'text-allow-overlap': true,
+          'text-optional': true,
+          'text-padding': 8,
+          'text-justify': 'left',
+          'text-transform': 'uppercase',
+          'text-offset': [0.5, 0],
+        },
+        paint: {
+          'text-color': '#0d6aff',
+          'text-halo-color': '#f9ea46',
+          'text-halo-width': 8,
+          'text-halo-blur': 5,
+          'text-opacity-transition': { duration: 1500 },
+        },
+      });
+      map.setLayoutProperty(meta.id, 'visibility', 'none');
+    }
+  });
+
+  // Add viewpoints last (on top of labels)
+  (_mapConfig.userLayersMeta ?? []).filter(m => m.category === 'viewpoints').forEach(meta => {
+    if (map.getSource(meta.sourceId) && !map.getLayer(meta.id)) {
+      map.addLayer({
+        id: meta.id, type: 'symbol', source: meta.sourceId,
+        layout: {
+          'icon-image': 'viewpoint-icon',
+          'icon-size': 0.25,
+          'icon-rotation-alignment': 'map',
+          'icon-rotate': ['get', 'angle'],
+          'icon-allow-overlap': true,
+        },
+        paint: { 'icon-opacity': 1, 'icon-opacity-transition': { duration: 1500 } },
+      });
+      map.setLayoutProperty(meta.id, 'visibility', 'none');
+    }
+  });
 }
 
 // ── Number animation with slide-up effect ────────────────────────────────────
@@ -374,16 +435,21 @@ function initScrollytelling() {
 
       titleSlideWrapper.appendChild(titlesDiv);
 
-      if (chapter.instructions && chapter.instructions.length > 0) {
-        const instructionsDiv = document.createElement('div');
-        instructionsDiv.className = 'title-slide-instructions';
-        chapter.instructions.forEach(instruction => {
-          const p = document.createElement('p');
-          p.textContent = instruction;
-          instructionsDiv.appendChild(p);
-        });
-        titleSlideWrapper.appendChild(instructionsDiv);
-      }
+      const defaultInstructions = [
+        'Click and Hold the Map to view present-day satellite imagery',
+        'Click and Hold an image to enlarge it',
+      ];
+      const instructionLines = (chapter.instructions && chapter.instructions.length > 0)
+        ? chapter.instructions
+        : defaultInstructions;
+      const instructionsDiv = document.createElement('div');
+      instructionsDiv.className = 'title-slide-instructions';
+      instructionLines.forEach(instruction => {
+        const p = document.createElement('p');
+        p.textContent = instruction;
+        instructionsDiv.appendChild(p);
+      });
+      titleSlideWrapper.appendChild(instructionsDiv);
 
       const buttonDiv = document.createElement('div');
       buttonDiv.className = 'title-slide-button-container';
@@ -730,6 +796,14 @@ function setActiveChapter(chapter) {
     });
   }
 
+  // Labels + viewpoints: filter to active chapter and show, regardless of chapter.layers config
+  const chapterIndex = parseInt(chapter.id);
+  (_mapConfig.userLayersMeta ?? []).filter(m => m.category === 'labels' || m.category === 'viewpoints').forEach(meta => {
+    if (!map.getLayer(meta.id)) return;
+    map.setFilter(meta.id, ['==', ['to-number', ['get', 'chapter']], chapterIndex]);
+    map.setLayoutProperty(meta.id, 'visibility', 'visible');
+  });
+
   // Hide layers from previous chapter that are not in this chapter
   Object.keys(previousLayerState).forEach(layerId => {
     if (previousLayerState[layerId] && !chapter.layers?.[layerId]) {
@@ -748,6 +822,14 @@ function setActiveChapter(chapter) {
 
       if (map.getLayer(layerId)) {
         const layerType = map.getLayer(layerId).type;
+        // Apply chapter filter for labels layers
+        if (typeof layerConfig === 'object' && 'chapterFilter' in layerConfig) {
+          if (layerConfig.chapterFilter != null) {
+            map.setFilter(layerId, ['==', ['to-number', ['get', 'chapter']], layerConfig.chapterFilter]);
+          } else {
+            map.setFilter(layerId, null); // title slide: show all labels
+          }
+        }
         map.setLayoutProperty(layerId, 'visibility', shouldBeVisible ? 'visible' : 'none');
 
         let opacityProp;

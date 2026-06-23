@@ -34,7 +34,7 @@ function initMap() {
     container: 'map',
     style: {
       version: 8,
-      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+      glyphs: 'https://cdn.jsdelivr.net/gh/openmaptiles/fonts@gh-pages/{fontstack}/{range}.pbf',
       sources: {},
       layers: []
     },
@@ -87,6 +87,9 @@ function initMap() {
   map.getCanvas().addEventListener('mouseleave', handleMapHoldEnd);
 
   map.on('load', () => {
+    map.loadImage('./images/viewpoint.png', (err, img) => {
+      if (!err && img) map.addImage('viewpoint-icon', img);
+    });
     addAllLayers();
     document.getElementById('loading-screen').style.display = 'none';
     initScrollytelling();
@@ -116,21 +119,43 @@ function addAllLayers() {
     });
   }
 
+  const specialMetaIds = new Set(
+    (_mapConfig.userLayersMeta ?? [])
+      .filter(m => m.category === 'labels' || m.category === 'viewpoints')
+      .map(m => m.id)
+  );
+
   if (_mapConfig.layers) {
     _mapConfig.layers.forEach(layerConfig => {
+      if (specialMetaIds.has(layerConfig.id)) return; // added last
       if (map.getLayer(layerConfig.id)) return;
       const layerWithTransition = { ...layerConfig, paint: { ...(layerConfig.paint ?? {}) } };
       const t = layerWithTransition.type;
       if (t === 'raster') layerWithTransition.paint['raster-opacity-transition'] = { duration: 1500 };
       else if (t === 'line')   layerWithTransition.paint['line-opacity-transition']   = { duration: 1500 };
       else if (t === 'fill')   layerWithTransition.paint['fill-opacity-transition']   = { duration: 1500 };
-      else if (t === 'symbol') layerWithTransition.paint['icon-opacity-transition']   = { duration: 1500 };
+      else if (t === 'symbol') {
+        layerWithTransition.paint['icon-opacity-transition'] = { duration: 1500 };
+        layerWithTransition.paint['text-opacity-transition'] = { duration: 1500 };
+      }
       map.addLayer(layerWithTransition);
     });
     _mapConfig.layers.forEach(l => {
+      if (specialMetaIds.has(l.id)) return;
       if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
     });
   }
+
+  // Add labels + viewpoints last so they render on top
+  (_mapConfig.userLayersMeta ?? []).filter(m => m.category === 'labels' || m.category === 'viewpoints').forEach(meta => {
+    const layerConfig = (_mapConfig.layers ?? []).find(l => l.id === meta.id);
+    if (!layerConfig || !map.getSource(meta.sourceId) || map.getLayer(meta.id)) return;
+    const layerWithTransition = { ...layerConfig, paint: { ...(layerConfig.paint ?? {}) } };
+    layerWithTransition.paint['text-opacity-transition'] = { duration: 1500 };
+    layerWithTransition.paint['icon-opacity-transition'] = { duration: 1500 };
+    map.addLayer(layerWithTransition);
+    map.setLayoutProperty(meta.id, 'visibility', 'none');
+  });
 }
 
 function animateNumber(element, fromValue, toValue, duration) {
@@ -632,6 +657,14 @@ function setActiveChapter(chapter) {
       essential: true
     });
   }
+
+  // Labels + viewpoints: filter to active chapter
+  const chapterIndex = parseInt(chapter.id);
+  (_mapConfig.userLayersMeta ?? []).filter(m => m.category === 'labels' || m.category === 'viewpoints').forEach(meta => {
+    if (!map.getLayer(meta.id)) return;
+    map.setFilter(meta.id, ['==', ['to-number', ['get', 'chapter']], chapterIndex]);
+    map.setLayoutProperty(meta.id, 'visibility', 'visible');
+  });
 
   Object.keys(previousLayerState).forEach(layerId => {
     if (previousLayerState[layerId] && !chapter.layers?.[layerId]) {
