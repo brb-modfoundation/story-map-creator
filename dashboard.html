@@ -11,12 +11,12 @@
 
     body {
       font-family: 'Poppins', sans-serif;
-      background: #f0f2f5;
+      background: #071f78;
       color: #2c3e50;
       min-height: 100vh;
     }
 
-    /* ── Auth Screen ────────────────────────────────── */
+    /*#region  ── Auth Screen ────────────────────────────────── */
     #auth-screen {
       min-height: 100vh;
       display: flex;
@@ -174,12 +174,13 @@
 
     .auth-message.error { background: #fdecea; color: #c62828; display: block; }
     .auth-message.success { background: #e8f5e9; color: #2e7d32; display: block; }
+    /*#endregion  ── Auth Screen ────────────────────────────────── */
 
     /* ── Dashboard Screen ───────────────────────────── */
     #dashboard-screen { display: none; min-height: 100vh; }
 
     .dash-header {
-      background: #2c3e50;
+      background: #0d6aff;
       color: white;
       padding: 1rem 2rem;
       display: flex;
@@ -195,8 +196,11 @@
     }
 
     .dash-header h1 {
-      font-size: 1.3rem;
+      color: white;
+      font-size: 20px;
+      font-family: 'Poppins', sans-serif;
       font-weight: 600;
+      text-transform: uppercase;
     }
 
     .dash-header-right {
@@ -240,19 +244,25 @@
     }
 
     .dash-toolbar h2 {
-      font-size: 1.4rem;
-      font-weight: 600;
+      color: rgba(255, 255, 255, 0.849);
+      font-size: 18px;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 500;
+      text-transform: uppercase;
+      margin-bottom: 10px;
     }
 
     .btn-new {
-      background: #2c3e50;
-      color: white;
-      border: none;
-      padding: 0.7rem 1.4rem;
-      border-radius: 8px;
-      font-size: 0.95rem;
+      background: #f9ea46;
+      padding: 0.5rem 1rem;
+      color: #071f78;
+      font-family: 'Poppins', sans-serif;
+      text-transform: uppercase;
+      font-size: 13px;
       font-weight: 600;
-      font-family: inherit;
+      letter-spacing: 0.08em;
+      border: none;
+      border-radius: 0px;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -260,7 +270,12 @@
       transition: background 0.2s;
     }
 
-    .btn-new:hover { background: #34495e; }
+    .btn-new:hover { 
+      background: #071f78; 
+      color: #f9ea46 ;
+      border: 1px solid #f9ea46;
+    
+    }
 
     /* Maps grid */
     .maps-grid {
@@ -270,8 +285,9 @@
     }
 
     .map-card {
-      background: white;
-      border-radius: 12px;
+      background: transparent;
+      border-radius: 0px;
+      border: 1px dashed #82f984;
       box-shadow: 0 2px 12px rgba(0,0,0,0.07);
       overflow: hidden;
       transition: transform 0.2s, box-shadow 0.2s;
@@ -283,63 +299,81 @@
       box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     }
 
-    .map-card-thumb {
-      height: 150px;
-      background: linear-gradient(135deg, #1a3a5c, #2c6e9e);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 3rem;
-      color: rgba(255,255,255,0.3);
-    }
 
     .map-card-body {
-      padding: 1.2rem;
+      padding: 0em;
     }
 
     .map-card-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #2c3e50;
-      margin-bottom: 0.3rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      padding: 1.2rem 1rem;
+      color: #071f78;
+      background-color: #82f984;
+      font-size: 20px;
+      letter-spacing: 0.1em;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .map-card-title-text {
+      flex: 1;
+      min-width: 0;
     }
 
     .map-card-meta {
+      padding: 1.2rem;
       font-size: 0.78rem;
-      color: #999;
-      margin-bottom: 1rem;
+      color: #ebebeb;
     }
 
     .map-card-footer {
+      padding: 1.2rem;
       display: flex;
       gap: 0.5rem;
       flex-wrap: wrap;
     }
 
     .badge-published {
-      background: #e8f5e9;
-      color: #2e7d32;
-      font-size: 0.72rem;
+      background: #071f78;
+      color: #82f984;
+      font-size: 0.65rem;
       font-weight: 600;
-      padding: 0.2rem 0.6rem;
+      padding: 0;
+      height: 30px;
+      line-height: 30px;
+      padding-inline: 0.6rem;
       border-radius: 20px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      align-self: flex-start;
+      text-transform: none;
+      letter-spacing: 0;
     }
 
     .badge-draft {
-      background: #fff8e1;
-      color: #f57f17;
-      font-size: 0.72rem;
+      background: rgba(0,0,0,0.18);
+      color: #071f78;
+      font-size: 0.65rem;
       font-weight: 600;
-      padding: 0.2rem 0.6rem;
+      padding: 0;
+      height: 30px;
+      line-height: 30px;
+      padding-inline: 0.6rem;
       border-radius: 20px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      align-self: flex-start;
+      text-transform: none;
+      letter-spacing: 0;
     }
 
     .btn-card {
       padding: 0.35rem 0.8rem;
-      border-radius: 6px;
+      border-radius: 0px;
       border: none;
       font-size: 0.8rem;
       font-weight: 500;
@@ -357,14 +391,13 @@
 
     /* Empty state */
     .empty-state {
+      padding: 3rem 0;
       grid-column: 1 / -1;
       text-align: center;
-      padding: 5rem 2rem;
       color: #bbb;
     }
 
-    .empty-state .empty-icon { font-size: 4rem; margin-bottom: 1rem; }
-    .empty-state p { font-size: 1.1rem; margin-bottom: 1.5rem; }
+    .empty-state p { font-size: 1rem; margin-bottom: 1.5rem; }
 
     /* New Map Modal */
     .modal-overlay {
@@ -380,8 +413,9 @@
     .modal-overlay.active { display: flex; }
 
     .modal-box {
-      background: white;
-      border-radius: 12px;
+      background: #f9ea46;
+      border-radius: 0px;
+      border: 1px solid #071f78;
       padding: 2rem;
       width: 100%;
       max-width: 440px;
@@ -389,42 +423,62 @@
     }
 
     .modal-box h3 {
-      font-size: 1.2rem;
-      margin-bottom: 1.5rem;
-      color: #2c3e50;
+      color: #071f78;
+      font-size: 18px;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 30px;
     }
 
     .modal-actions {
       display: flex;
       gap: 0.75rem;
-      justify-content: flex-end;
+      justify-content: flex-start;
       margin-top: 1.5rem;
     }
 
     .btn-cancel {
-      padding: 0.7rem 1.2rem;
-      background: #f5f5f5;
-      color: #555;
-      border: none;
-      border-radius: 8px;
-      font-family: inherit;
-      font-size: 0.9rem;
+      background: #f9ea46;
+      padding: 0.5rem 1rem;
+      color: #071f78;
+      font-family: 'Poppins', sans-serif;
+      text-transform: uppercase;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      border: 1px solid #071f78;
+      border-radius: 0px;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.2s;
     }
 
     .btn-create {
-      padding: 0.7rem 1.4rem;
-      background: #2c3e50;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-family: inherit;
-      font-size: 0.9rem;
+      background: #071f78;
+      padding: 0.5rem 1rem;
+      color: #f9ea46;
+      font-family: 'Poppins', sans-serif;
+      text-transform: uppercase;
+      font-size: 13px;
       font-weight: 600;
+      letter-spacing: 0.08em;
+      border: none;
+      border-radius: 0px;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.2s;
     }
 
-    .btn-create:hover { background: #34495e; }
+    .btn-create:hover { 
+      background: #f9ea46; 
+      color: #071f78 ;
+      border: 1px solid #071f78;
+     }
 
     /* Loading spinner */
     .spinner {
@@ -516,8 +570,7 @@
 <div id="dashboard-screen">
   <header class="dash-header">
     <div class="dash-header-left">
-      <span style="font-size:1.5rem">🗺️</span>
-      <h1>Story Maps</h1>
+      <h1>Story Map Creator</h1>
     </div>
     <div class="dash-header-right">
       <span class="user-badge" id="user-email-badge"></span>
@@ -646,9 +699,7 @@
     if (!maps.length) {
       grid.innerHTML = `
         <div class="empty-state">
-          <div class="empty-icon">🗺️</div>
           <p>You haven't created any story maps yet.</p>
-          <button class="btn-new" onclick="openNewMapModal()">＋ Create your first map</button>
         </div>`;
       return;
     }
@@ -664,12 +715,13 @@
     const updated = new Date(map.updated_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
     card.innerHTML = `
-      <div class="map-card-thumb">🗺️</div>
       <div class="map-card-body">
-        <div class="map-card-title" title="${map.title}">${map.title}</div>
+        <div class="map-card-title" title="${map.title}">
+          <span class="map-card-title-text">${map.title}</span>
+          <span class="${map.published ? 'badge-published' : 'badge-draft'}">${map.published ? '● Published' : '○ Draft'}</span>
+        </div>
         <div class="map-card-meta">Updated ${updated}</div>
         <div class="map-card-footer">
-          <span class="${map.published ? 'badge-published' : 'badge-draft'}">${map.published ? '● Published' : '○ Draft'}</span>
           <button class="btn-card btn-edit" onclick="openEditor('${map.id}')">Edit</button>
           <button class="btn-card btn-view" onclick="viewMap('${map.id}', ${map.published}, '${map.slug}')">View</button>
           ${map.published
