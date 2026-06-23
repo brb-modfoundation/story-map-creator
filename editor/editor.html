@@ -13,39 +13,17 @@
     <link rel="stylesheet" href="./editor.css">
     <style>
       .cloud-status { font-size: 0.78rem; color: #7fb3d3; }
-      .btn-cloud-view {
-        background: #2980b9;
-        color: white;
-        border: none;
-        padding: 0.35rem 0.9rem;
-        border-radius: 5px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        cursor: pointer;
-        font-family: inherit;
-        transition: background 0.2s;
-      }
-      .btn-cloud-view:hover { background: #2471a3; }
-      .btn-cloud-publish {
-        background: #9b59b6;
-        color: white;
-        border: none;
-        padding: 0.35rem 0.9rem;
-        border-radius: 5px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        cursor: pointer;
-        font-family: inherit;
-        transition: background 0.2s;
-      }
-      .btn-cloud-publish:hover { background: #8e44ad; }
       .btn-back-dash {
-        color: #7fb3d3;
+        color: #e4e4e4;
+        border: 1px solid #e4e4e4;
         font-size: 0.82rem;
+        font-weight: 600;
         text-decoration: none;
         white-space: nowrap;
+        padding: 0.35rem 0.9rem;
+        transition: background 0.2s, color 0.2s;
       }
-      .btn-back-dash:hover { color: white; }
+      .btn-back-dash:hover { background: #9ca3af; color: #fff; }
       .editor-container { height: 100vh; display: flex; flex-direction: column; }
     </style>
 </head>
@@ -56,14 +34,14 @@
             <div class="editor-header-left">
                 <a href="../dashboard.html" class="btn-back-dash">← Dashboard</a>
                 <span class="header-divider">|</span>
-                <h1 class="editor-title"><span id="header-map-title">Story Map</span> — Editor</h1>
+                <h1 class="editor-title"><span id="header-map-title">Story Map</span></h1>
                 <span class="cloud-status" id="cloud-status"></span>
             </div>
             <div class="header-actions">
-                <button id="export-btn" class="btn btn-secondary">Export</button>
-                <button id="save-all-btn" class="btn btn-success">Save</button>
-                <button class="btn-cloud-view" id="cloud-view-btn" onclick="cloudOpenView()" style="display:none">View</button>
-                <button class="btn-cloud-publish" id="cloud-publish-btn" onclick="cloudTogglePublish()" style="display:none">Publish</button>
+                <button id="export-btn" class="btn-action btn-action--export">Export</button>
+                <button id="save-all-btn" class="btn-action btn-action--save">Save</button>
+                <button id="cloud-view-btn" class="btn-action btn-action--view" onclick="cloudOpenView()" style="display:none">View</button>
+                <button id="cloud-publish-btn" class="btn-action btn-action--publish" onclick="cloudTogglePublish()" style="display:none">Publish</button>
             </div>
         </header>
 
@@ -79,10 +57,10 @@
                 <!-- Chapters panel -->
                 <div class="sidebar-tab-content" data-panel="chapters">
                     <div class="sidebar-panel-header" style="display:flex;flex-direction:column;gap:0.35rem;">
-                        <div class="add-chapter-buttons" style="display:flex;gap:0.35rem;flex-wrap:wrap;">
-                            <button class="btn btn-small" data-add-type="title" style="flex:1;min-width:0;font-size:0.72rem;">+ Title</button>
-                            <button class="btn btn-small btn-primary" data-add-type="map" style="flex:1;min-width:0;font-size:0.72rem;">+ Map</button>
-                            <button class="btn btn-small" data-add-type="image" style="flex:1;min-width:0;font-size:0.72rem;background:#8e44ad;color:white;border:none;">+ Image</button>
+                        <div class="add-chapter-buttons" style="display:flex;gap:0;flex-wrap:wrap;">
+                            <button class="btn-add-chapter" data-add-type="title">+ Title</button>
+                            <button class="btn-add-chapter" data-add-type="map">+ Map</button>
+                            <button class="btn-add-chapter" data-add-type="image">+ Image</button>
                         </div>
                     </div>
                     <div id="chapters-list" class="chapters-list"></div>
@@ -96,7 +74,6 @@
                                 + Add Layer
                                 <input type="file" id="layer-file-input" accept=".geojson,.json,.kml,.tif,.tiff" hidden multiple>
                             </label>
-                            <span class="layers-drop-hint">or drop onto map</span>
                         </div>
                         <div id="layer-list" class="layer-list"></div>
                         <div class="labels-upload-section">
@@ -172,7 +149,7 @@
                 </div>
 
                 <div class="map-controls">
-                    <button id="capture-view-btn" class="btn btn-primary">Capture Current View</button>
+                    <button id="capture-view-btn" class="btn-capture">Capture Current View</button>
                     <div class="view-info">
                         <span>Zoom: <span id="current-zoom">2</span></span>
                         <span>Pitch: <span id="current-pitch">0</span>°</span>
@@ -188,9 +165,10 @@
                 </div>
                 <div id="chapter-form" class="chapter-form" style="display:none">
                     <h3>Edit Chapter</h3>
+                    <div class="chapter-form-body">
 
                     <!-- Chapter Info -->
-                    <div class="editor-section">
+                    <div class="editor-section collapsed">
                         <div class="editor-section-header">
                             <span>Chapter Info</span>
                             <span class="editor-section-arrow">▼</span>
@@ -221,33 +199,36 @@
                                 <div class="form-group">
                                     <label for="chapter-description">Description</label>
                                     <textarea id="chapter-description" rows="4" placeholder="Chapter description"></textarea>
+                                    <span class="form-hint">Enclose text in <code>&lt;light&gt;&lt;/light&gt;</code> for a highlight</span>
                                 </div>
                                 <div class="form-group">
-                                    <label for="chapter-quote">Quote (optional)</label>
-                                    <textarea id="chapter-quote" rows="3" placeholder="Quote text"></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label for="chapter-description-source">Description Source (optional)</label>
+                                    <label for="chapter-description-source">Description Source</label>
                                     <input type="text" id="chapter-description-source" placeholder="Source for the description">
                                 </div>
+
                                 <div class="form-group">
-                                    <label for="chapter-quote-source">Quote Source (optional)</label>
+                                    <label for="chapter-quote">Quote</label>
+                                    <textarea id="chapter-quote" rows="3" placeholder="Quote text"></textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="chapter-quote-source">Quote Source</label>
                                     <input type="text" id="chapter-quote-source" placeholder="Source for the quote">
                                 </div>
                                 <div class="form-group">
-                                    <label for="chapter-year">Year (for timeline)</label>
+                                    <label for="chapter-year">Year</label>
                                     <input type="text" id="chapter-year" placeholder="e.g., 1854">
                                 </div>
                                 <div class="form-group">
-                                    <label for="chapter-population">Population (optional)</label>
+                                    <label for="chapter-population">Population</label>
                                     <input type="text" id="chapter-population" placeholder="e.g., 50,000">
                                 </div>
                                 <div class="form-group">
-                                    <label for="chapter-button-text">Button Text (optional)</label>
+                                    <label for="chapter-button-text">Button Text</label>
                                     <input type="text" id="chapter-button-text" placeholder="e.g., Explore More">
                                 </div>
                                 <div class="form-group">
-                                    <label for="chapter-button-url">Button URL (optional)</label>
+                                    <label for="chapter-button-url">Button URL</label>
                                     <input type="text" id="chapter-button-url" placeholder="https://example.com">
                                 </div>
                             </div>
@@ -267,7 +248,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="chapter-image-caption">Image Caption (optional)</label>
+                                    <label for="chapter-image-caption">Image Caption</label>
                                     <input type="text" id="chapter-image-caption" placeholder="Caption for the image">
                                 </div>
                             </div>
@@ -288,7 +269,7 @@
 
                     <!-- Map View (hidden for image chapters) -->
                     <div id="section-map-view">
-                    <div class="editor-section">
+                    <div class="editor-section collapsed">
                         <div class="editor-section-header">
                             <span>Map View</span>
                             <span class="editor-section-arrow">▼</span>
@@ -321,7 +302,7 @@
                                 </div>
                             </div>
 
-                            <div id="bounds-inputs" style="display:none">
+                            <div id="bounds-inputs" style="margin-bottom: 1rem;">
                                 <h4 style="margin:1rem 0 0.5rem;color:#333;font-size:0.95rem">Desktop Bounds</h4>
                                 <div class="form-row">
                                     <div class="form-group">
@@ -343,76 +324,76 @@
                                         <input type="number" id="bounds-ne-lat" step="0.0001">
                                     </div>
                                 </div>
-                                <button type="button" id="get-bounds-button" class="secondary-button">Get Current Bounds (Desktop)</button>
+                                <button type="button" id="get-bounds-button" class="upload-btn-label">Get Current Bounds (Desktop)</button>
 
                                 <h4 style="margin:1.5rem 0 0.5rem;color:#333;font-size:0.95rem">iPad Bounds (Optional)</h4>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="bounds-ipad-sw-lng">SW Longitude</label>
-                                        <input type="number" id="bounds-ipad-sw-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-ipad-sw-lng" step="0.0001" placeholder="">
                                     </div>
                                     <div class="form-group">
                                         <label for="bounds-ipad-sw-lat">SW Latitude</label>
-                                        <input type="number" id="bounds-ipad-sw-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-ipad-sw-lat" step="0.0001" placeholder="">
                                     </div>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="bounds-ipad-ne-lng">NE Longitude</label>
-                                        <input type="number" id="bounds-ipad-ne-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-ipad-ne-lng" step="0.0001" placeholder="">
                                     </div>
                                     <div class="form-group">
                                         <label for="bounds-ipad-ne-lat">NE Latitude</label>
-                                        <input type="number" id="bounds-ipad-ne-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-ipad-ne-lat" step="0.0001" placeholder="">
                                     </div>
                                 </div>
-                                <button type="button" id="get-bounds-ipad-button" class="secondary-button">Get Current Bounds (iPad Landscape)</button>
+                                <button type="button" id="get-bounds-ipad-button" class="upload-btn-label">Get Current Bounds (iPad Landscape)</button>
 
                                 <h4 style="margin:1.5rem 0 0.5rem;color:#333;font-size:0.95rem">iPad Portrait Bounds (Optional)</h4>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="bounds-ipad-portrait-sw-lng">SW Longitude</label>
-                                        <input type="number" id="bounds-ipad-portrait-sw-lng" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                        <input type="number" id="bounds-ipad-portrait-sw-lng" step="0.0001" placeholder="">
                                     </div>
                                     <div class="form-group">
                                         <label for="bounds-ipad-portrait-sw-lat">SW Latitude</label>
-                                        <input type="number" id="bounds-ipad-portrait-sw-lat" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                        <input type="number" id="bounds-ipad-portrait-sw-lat" step="0.0001" placeholder="">
                                     </div>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="bounds-ipad-portrait-ne-lng">NE Longitude</label>
-                                        <input type="number" id="bounds-ipad-portrait-ne-lng" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                        <input type="number" id="bounds-ipad-portrait-ne-lng" step="0.0001" placeholder="">
                                     </div>
                                     <div class="form-group">
                                         <label for="bounds-ipad-portrait-ne-lat">NE Latitude</label>
-                                        <input type="number" id="bounds-ipad-portrait-ne-lat" step="0.0001" placeholder="Leave empty to use iPad landscape">
+                                        <input type="number" id="bounds-ipad-portrait-ne-lat" step="0.0001" placeholder="">
                                     </div>
                                 </div>
-                                <button type="button" id="get-bounds-ipad-portrait-button" class="secondary-button">Get Current Bounds (iPad Portrait)</button>
+                                <button type="button" id="get-bounds-ipad-portrait-button" class="upload-btn-label">Get Current Bounds (iPad Portrait)</button>
 
                                 <h4 style="margin:1.5rem 0 0.5rem;color:#333;font-size:0.95rem">iPhone Bounds (Optional)</h4>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="bounds-mobile-sw-lng">SW Longitude</label>
-                                        <input type="number" id="bounds-mobile-sw-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-mobile-sw-lng" step="0.0001" placeholder="">
                                     </div>
                                     <div class="form-group">
                                         <label for="bounds-mobile-sw-lat">SW Latitude</label>
-                                        <input type="number" id="bounds-mobile-sw-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-mobile-sw-lat" step="0.0001" placeholder="">
                                     </div>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="bounds-mobile-ne-lng">NE Longitude</label>
-                                        <input type="number" id="bounds-mobile-ne-lng" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-mobile-ne-lng" step="0.0001" placeholder="">
                                     </div>
                                     <div class="form-group">
                                         <label for="bounds-mobile-ne-lat">NE Latitude</label>
-                                        <input type="number" id="bounds-mobile-ne-lat" step="0.0001" placeholder="Leave empty to use desktop">
+                                        <input type="number" id="bounds-mobile-ne-lat" step="0.0001" placeholder="">
                                     </div>
                                 </div>
-                                <button type="button" id="get-bounds-mobile-button" class="secondary-button">Get Current Bounds (iPhone)</button>
+                                <button type="button" id="get-bounds-mobile-button" class="upload-btn-label">Get Current Bounds (iPhone)</button>
                             </div>
 
                             <div class="form-row">
@@ -438,7 +419,7 @@
 
                     <!-- Chapter Layers (hidden for image chapters) -->
                     <div id="section-layers">
-                    <div class="editor-section">
+                    <div class="editor-section collapsed">
                         <div class="editor-section-header">
                             <span>Chapter Layers</span>
                             <span class="editor-section-arrow">▼</span>
@@ -450,6 +431,7 @@
 
                     </div><!-- /#section-layers -->
 
+                    </div><!-- /.chapter-form-body -->
                 </div>
             </div>
         </div>

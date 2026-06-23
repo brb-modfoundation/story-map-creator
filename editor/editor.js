@@ -928,11 +928,11 @@ function renderChaptersList() {
         item.draggable = true;
         item.dataset.index = index;
         const typeLabel = chapter.chapterType === 'title' ? 'Title' : chapter.chapterType === 'image' ? 'Image' : chapter.isTitleSlide ? 'Title' : 'Map';
-        const typeColor = chapter.chapterType === 'title' ? '#e67e22' : chapter.chapterType === 'image' ? '#8e44ad' : '#2980b9';
+        const typeClass = chapter.chapterType === 'title' ? 'chapter-type--title' : chapter.chapterType === 'image' ? 'chapter-type--image' : 'chapter-type--map';
         item.innerHTML = `
             <span class="drag-handle">⋮⋮</span>
             <div class="chapter-item-content">
-                <span class="chapter-number">Ch ${index} &nbsp;<span style="font-size:0.65rem;font-weight:700;color:${typeColor};text-transform:uppercase;letter-spacing:0.04em;">${typeLabel}</span></span>
+                <span class="chapter-number">Ch ${index} &nbsp;<span class="chapter-type-label ${typeClass}">${typeLabel}</span></span>
                 <h4>${chapter.title || 'Untitled'}</h4>
                 <p>${chapter.description || ''}</p>
             </div>
@@ -1199,7 +1199,7 @@ function populateLayerToggles(chapter) {
 
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
-        addBtn.className = 'btn btn-small btn-primary';
+        addBtn.className = 'upload-btn-label';
         addBtn.textContent = '+ Add';
         addBtn.addEventListener('click', () => {
             const layerId = sel.value;

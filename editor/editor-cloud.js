@@ -227,7 +227,9 @@ function updatePublishButton(published) {
   const btn = document.getElementById('cloud-publish-btn');
   if (!btn) return;
   btn.textContent = published ? '✓ Published' : 'Publish';
-  btn.style.background = published ? '#27ae60' : '#9b59b6';
+  btn.style.background = '';
+  btn.style.color = '';
+  btn.style.borderColor = '';
 }
 
 function setStatus(msg, isError = false) {
@@ -246,9 +248,9 @@ function initCoreCatalog() {
   if (!toolbar) return;
 
   const btn = document.createElement('button');
-  btn.textContent = '🗂 Core Layers';
+  btn.textContent = '+ Core Layers';
   btn.type = 'button';
-  btn.style.cssText = 'padding:0.35rem 0.7rem;border:1px solid #2c3e50;background:white;color:#2c3e50;border-radius:5px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:inherit';
+  btn.className = 'upload-btn-label';
   btn.addEventListener('click', toggleCatalogPanel);
   toolbar.appendChild(btn);
 
