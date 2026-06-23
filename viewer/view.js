@@ -171,14 +171,6 @@ function addAllLayers() {
       if (labelsSubLayerPattern.test(layerConfig.id)) return; // skip old sub-layers
       if (map.getLayer(layerConfig.id)) return;
       const layerWithTransition = { ...layerConfig, paint: { ...(layerConfig.paint ?? {}) } };
-      const t = layerWithTransition.type;
-      if (t === 'raster') layerWithTransition.paint['raster-opacity-transition'] = { duration: 1500 };
-      else if (t === 'line')   layerWithTransition.paint['line-opacity-transition']   = { duration: 1500 };
-      else if (t === 'fill')   layerWithTransition.paint['fill-opacity-transition']   = { duration: 1500 };
-      else if (t === 'symbol') {
-        layerWithTransition.paint['icon-opacity-transition'] = { duration: 1500 };
-        layerWithTransition.paint['text-opacity-transition'] = { duration: 1500 };
-      }
       map.addLayer(layerWithTransition);
     });
     // Hide all non-labels user layers initially
@@ -210,7 +202,6 @@ function addAllLayers() {
           'text-halo-color': '#f9ea46',
           'text-halo-width': 8,
           'text-halo-blur': 5,
-          'text-opacity-transition': { duration: 1500 },
         },
       });
       map.setLayoutProperty(meta.id, 'visibility', 'none');
@@ -229,7 +220,7 @@ function addAllLayers() {
           'icon-rotate': ['get', 'angle'],
           'icon-allow-overlap': true,
         },
-        paint: { 'icon-opacity': 1, 'icon-opacity-transition': { duration: 1500 } },
+        paint: { 'icon-opacity': 1 },
       });
       map.setLayoutProperty(meta.id, 'visibility', 'none');
     }
@@ -758,9 +749,15 @@ function setActiveChapter(chapter) {
     }
   }
 
-  // Legend visibility (show only for chapter id === '2')
+  // Legend: show uploaded image in bottom-right if chapter has one
   if (mapLegend) {
-    mapLegend.style.display = chapter.id === '2' ? 'block' : 'none';
+    if (chapter.legend) {
+      mapLegend.innerHTML = `<img src="${chapter.legend}" alt="Legend" style="max-width:200px;max-height:200px;display:block;">`;
+      mapLegend.style.display = 'block';
+    } else {
+      mapLegend.style.display = 'none';
+      mapLegend.innerHTML = '';
+    }
   }
 
   // Map animation — skip for image chapters (no map movement)

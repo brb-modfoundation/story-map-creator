@@ -171,6 +171,7 @@ function initializeUI() {
     setupCollapsibleSections();
     setupKeyboardShortcuts();
     initChapterImageUpload();
+    initChapterLegendUpload();
 }
 
 function updateImageChapterPreview(url) {
@@ -229,6 +230,34 @@ function initChapterImageUpload() {
         preview.style.display = 'none';
         fileInput.value = '';
         updateImageChapterPreview(null);
+    });
+}
+
+function initChapterLegendUpload() {
+    const fileInput = document.getElementById('chapter-legend-file');
+    const hiddenUrl = document.getElementById('chapter-legend');
+    const preview   = document.getElementById('chapter-legend-preview');
+    const thumb     = document.getElementById('chapter-legend-thumb');
+    const clearBtn  = document.getElementById('chapter-legend-clear');
+
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        fileInput.value = '';
+        const localUrl = URL.createObjectURL(file);
+        thumb.src = localUrl;
+        preview.style.display = 'block';
+        hiddenUrl.value = localUrl;
+
+        const remoteUrl = await window._cloudUploadDataset?.(file);
+        if (remoteUrl) { hiddenUrl.value = remoteUrl; thumb.src = remoteUrl; }
+    });
+
+    clearBtn.addEventListener('click', () => {
+        hiddenUrl.value = '';
+        thumb.src = '';
+        preview.style.display = 'none';
+        fileInput.value = '';
     });
 }
 
@@ -1095,6 +1124,7 @@ function setFormType(type) {
     show('section-subtitles',          type === 'title');
     show('section-map-chapter-fields', type !== 'title');
     show('section-image',              type !== 'title');
+    show('section-legend',             type === 'map');
     show('section-alignment',          type !== 'title');
     show('section-map-view',           type !== 'image');
     show('section-layers',             type !== 'image');
@@ -1130,6 +1160,12 @@ function populateChapterForm(chapter) {
     }
     fileInput.value = '';
     set('chapter-image-caption', chapter.imageCaption);
+    // legend
+    document.getElementById('chapter-legend').value = chapter.legend ?? '';
+    const legendThumb = document.getElementById('chapter-legend-thumb');
+    const legendPreview = document.getElementById('chapter-legend-preview');
+    if (chapter.legend) { legendThumb.src = chapter.legend; legendPreview.style.display = 'block'; }
+    else { legendThumb.src = ''; legendPreview.style.display = 'none'; }
     set('chapter-description-source', chapter.descriptionSource);
     set('chapter-quote-source', chapter.quoteSource);
     document.getElementById('chapter-alignment').value = chapter.alignment || 'center';
@@ -1429,12 +1465,13 @@ function saveCurrentChapter() {
         ch.buttonUrl       = get('chapter-button-url') || null;
         ch.image           = get('chapter-image') || null;
         ch.imageCaption    = get('chapter-image-caption') || null;
+        ch.legend          = get('chapter-legend') || null;
         ch.alignment       = get('chapter-alignment');
     } else {
         ch.description = null; ch.quote = null; ch.year = null; ch.population = null;
         ch.descriptionSource = null; ch.quoteSource = null;
         ch.buttonText = null; ch.buttonUrl = null;
-        ch.image = null; ch.imageCaption = null;
+        ch.image = null; ch.imageCaption = null; ch.legend = null;
         ch.alignment = 'center';
     }
 
@@ -1514,7 +1551,8 @@ window._getMapConfigJSON = () => {
     const layers = [];
     userLayers.forEach(entry => {
         if (entry.category === 'raster') {
-            const url = entry.remoteUrl ? `cog://${entry.remoteUrl}` : `cog://./datasets/geotiff/${entry.filename}`;
+            const rawUrl = entry.remoteUrl ? entry.remoteUrl.replace(/^https?:\/\//, '') : `./datasets/geotiff/${entry.filename}`;
+            const url = `cog://${rawUrl}`;
             sources[entry.sourceId] = { type: 'raster', url, tileSize: 256 };
             layers.push({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });
         } else {
@@ -2030,7 +2068,7 @@ async function exportFolder(btn) {
             const isCoreLayer = entry.remoteUrl && entry.remoteUrl.includes('mod-foundation.github.io');
             if (entry.category === 'raster') {
                 const rasterUrl = isCoreLayer
-                    ? `cog://${entry.remoteUrl}`
+                    ? `cog://${entry.remoteUrl.replace(/^https?:\/\//, '')}`
                     : `cog://./layers/geotiff/${entry.filename}`;
                 sources[entry.sourceId] = { type: 'raster', url: rasterUrl, tileSize: 256 };
                 layers.push({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });

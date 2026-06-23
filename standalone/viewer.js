@@ -623,7 +623,13 @@ function setActiveChapter(chapter) {
   }
 
   if (mapLegend) {
-    mapLegend.style.display = chapter.id === '2' ? 'block' : 'none';
+    if (chapter.legend) {
+      mapLegend.innerHTML = `<img src="${chapter.legend}" alt="Legend" style="max-width:200px;max-height:200px;display:block;">`;
+      mapLegend.style.display = 'block';
+    } else {
+      mapLegend.style.display = 'none';
+      mapLegend.innerHTML = '';
+    }
   }
 
   if (chIsImage) {
