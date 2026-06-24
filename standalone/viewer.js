@@ -24,7 +24,7 @@ if (typeof storyConfig === 'undefined' || typeof mapConfig === 'undefined') {
 }
 
 let _viewpointImageData = null;
-fetch('./images/viewpoint.png')
+fetch('https://raw.githubusercontent.com/brb-modfoundation/story-map-creator/main/images/viewpoint.png')
   .then(r => r.blob())
   .then(blob => createImageBitmap(blob))
   .then(bmp => { _viewpointImageData = bmp; })
