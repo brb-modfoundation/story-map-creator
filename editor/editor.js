@@ -1549,8 +1549,7 @@ window._getMapConfigJSON = () => {
     const layers = [];
     userLayers.forEach(entry => {
         if (entry.category === 'raster') {
-            const rawUrl = entry.remoteUrl ? entry.remoteUrl.replace(/^https?:\/\//, '') : `./datasets/geotiff/${entry.filename}`;
-            const url = `cog://${rawUrl}`;
+            const url = entry.remoteUrl ? `cog://${entry.remoteUrl}` : `cog://./datasets/geotiff/${entry.filename}`;
             sources[entry.sourceId] = { type: 'raster', url, tileSize: 256 };
             layers.push({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });
         } else {

@@ -198,12 +198,14 @@ serve(async (req) => {
 
     // ── Build file list for GitHub commit ────────────────────
     const base = `published/${slug}`;
+    // CSS uses ../images/ (correct for viewer/ path) — rewrite to ./images/ for standalone published layout
+    const patchedStyleCSS = styleCSS.replace(/url\(['"]?\.\.\/images\//g, "url('./images/");
 
     interface FileEntry { content: string | Uint8Array; binary: boolean; }
     const filesToPush: Record<string, FileEntry> = {
-      [`${base}/index.html`]:       { content: indexHtml,      binary: false },
-      [`${base}/viewer.js`]:        { content: viewerJs,       binary: false },
-      [`${base}/story-style.css`]:  { content: styleCSS,       binary: false },
+      [`${base}/index.html`]:       { content: indexHtml,        binary: false },
+      [`${base}/viewer.js`]:        { content: viewerJs,         binary: false },
+      [`${base}/story-style.css`]:  { content: patchedStyleCSS,  binary: false },
       [`${base}/storyConfig.js`]:   { content: storyConfigJs,  binary: false },
       [`${base}/mapConfig.js`]:     { content: mapConfigJs,    binary: false },
     };

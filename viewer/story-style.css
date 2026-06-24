@@ -458,7 +458,7 @@ body {
 
 .chapter-quote::before {
   content: '';
-  background-image: url('./images/quote-icon.png');
+  background-image: url('../images/quote-icon.png');
   background-size: 2rem;
   background-position: center;
   background-repeat: no-repeat;
