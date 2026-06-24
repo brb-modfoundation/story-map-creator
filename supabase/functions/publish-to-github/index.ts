@@ -132,7 +132,7 @@ serve(async (req) => {
       if (isRaster) {
         // Keep Supabase URL for rasters
         const url = m.remoteUrl ?? m.blobUrl ?? '';
-        sources[m.sourceId] = { type: 'raster', tiles: [`cog://${url}`], tileSize: 256 };
+        sources[m.sourceId] = { type: 'raster', url: `cog://${url}`, tileSize: 256 };
         layers.push({ id: m.id, type: 'raster', source: m.sourceId });
       } else {
         // Vector — core layers keep their URL, user layers point local
