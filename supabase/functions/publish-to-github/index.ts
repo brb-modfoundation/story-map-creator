@@ -139,11 +139,20 @@ serve(async (req) => {
         const dataUrl = isCore ? (m.remoteUrl ?? '') : `./layers/${m.filename}`;
         sources[m.sourceId] = { type: 'geojson', data: dataUrl };
 
-        const style = m.style ?? 'point';
-        if (style === 'polygon') {
-          layers.push({ id: `${m.id}-fill`,    type: 'fill',  source: m.sourceId, paint: { 'fill-color': m.color ?? '#3388ff', 'fill-opacity': 0.4 } });
-          layers.push({ id: `${m.id}-outline`, type: 'line',  source: m.sourceId, paint: { 'line-color': m.strokeColor ?? m.color ?? '#3388ff', 'line-width': m.strokeWidth ?? 1 } });
-        } else if (style === 'line') {
+        if (m.category === 'labels') {
+          layers.push({ id: m.id, type: 'symbol', source: m.sourceId,
+            layout: { 'text-field': ['get', 'name'], 'text-font': ['Open Sans Bold'], 'text-size': 15, 'text-anchor': 'left', 'text-allow-overlap': true, 'text-transform': 'uppercase', 'text-offset': [0.5, 0] },
+            paint: { 'text-color': '#0d6aff', 'text-halo-color': '#f9ea46', 'text-halo-width': 6 },
+          });
+        } else if (m.category === 'viewpoints') {
+          layers.push({ id: m.id, type: 'symbol', source: m.sourceId,
+            layout: { 'icon-image': 'viewpoint-icon', 'icon-size': 0.15, 'icon-rotation-alignment': 'map', 'icon-rotate': ['get', 'angle'], 'icon-allow-overlap': true },
+            paint: { 'icon-opacity': 1 },
+          });
+        } else if (m.category === 'polygon') {
+          layers.push({ id: `${m.id}-fill`,    type: 'fill', source: m.sourceId, paint: { 'fill-color': m.color ?? '#3388ff', 'fill-opacity': 0.4 } });
+          layers.push({ id: `${m.id}-outline`, type: 'line', source: m.sourceId, paint: { 'line-color': m.strokeColor ?? m.color ?? '#3388ff', 'line-width': m.strokeWidth ?? 1 } });
+        } else if (m.category === 'line') {
           layers.push({ id: m.id, type: 'line', source: m.sourceId, paint: { 'line-color': m.color ?? '#3388ff', 'line-width': m.strokeWidth ?? 2 } });
         } else {
           layers.push({ id: m.id, type: 'circle', source: m.sourceId, paint: { 'circle-color': m.color ?? '#3388ff', 'circle-radius': 5 } });
