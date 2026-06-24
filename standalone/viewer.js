@@ -24,6 +24,10 @@ if (typeof storyConfig === 'undefined' || typeof mapConfig === 'undefined') {
 }
 
 function initMap() {
+  const viewpointImg = new Image();
+  viewpointImg.crossOrigin = 'anonymous';
+  viewpointImg.src = './images/viewpoint.png';
+
   const bm = _mapConfig.basemaps?.[_mapConfig.defaultBasemap] ?? {
     tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
     tileSize: 256,
@@ -86,18 +90,20 @@ function initMap() {
   map.getCanvas().addEventListener('touchend', handleMapHoldEnd, { passive: true });
   map.getCanvas().addEventListener('mouseleave', handleMapHoldEnd);
 
+  map.on('styleimagemissing', (e) => {
+    if (e.id === 'viewpoint-icon' && viewpointImg.complete && viewpointImg.naturalWidth > 0) {
+      if (!map.hasImage('viewpoint-icon')) map.addImage('viewpoint-icon', viewpointImg);
+    }
+  });
+
   map.on('load', () => {
-    map.loadImage('./images/viewpoint.png', (err, img) => {
-      if (!err && img) map.addImage('viewpoint-icon', img);
-    });
-    // styleimagemissing fires if viewpoint-icon isn't ready yet when a tile renders
-    map.on('styleimagemissing', (e) => {
-      if (e.id === 'viewpoint-icon') {
-        map.loadImage('./images/viewpoint.png', (err, img) => {
-          if (!err && img && !map.hasImage('viewpoint-icon')) map.addImage('viewpoint-icon', img);
-        });
-      }
-    });
+    if (viewpointImg.complete && viewpointImg.naturalWidth > 0) {
+      map.addImage('viewpoint-icon', viewpointImg);
+    } else {
+      viewpointImg.onload = () => {
+        if (!map.hasImage('viewpoint-icon')) map.addImage('viewpoint-icon', viewpointImg);
+      };
+    }
     addAllLayers();
     document.getElementById('loading-screen').style.display = 'none';
     initScrollytelling();
