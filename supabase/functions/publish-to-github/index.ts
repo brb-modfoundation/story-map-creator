@@ -162,12 +162,14 @@ serve(async (req) => {
 
     // Embed viewpoint PNG as base64 so the standalone viewer can addImage
     // synchronously without any fetch — avoids the worker thread timing race.
-    let viewpointB64 = '';
-    {
+    const viewpointB64 = (() => {
+      const CHUNK = 8192;
       let bin = '';
-      for (let i = 0; i < viewpointPng.length; i++) bin += String.fromCharCode(viewpointPng[i]);
-      viewpointB64 = btoa(bin);
-    }
+      for (let i = 0; i < viewpointPng.length; i += CHUNK) {
+        bin += String.fromCharCode(...viewpointPng.subarray(i, i + CHUNK));
+      }
+      return btoa(bin);
+    })();
 
     const exportMapConfig = {
       initialView:       mapConfig?.initialView     ?? { center: [0, 20], zoom: 2 },
