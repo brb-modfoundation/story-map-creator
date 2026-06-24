@@ -23,6 +23,13 @@ if (typeof storyConfig === 'undefined' || typeof mapConfig === 'undefined') {
   initMap();
 }
 
+let _viewpointImageData = null;
+fetch('./images/viewpoint.png')
+  .then(r => r.blob())
+  .then(blob => createImageBitmap(blob))
+  .then(bmp => { _viewpointImageData = bmp; })
+  .catch(() => {});
+
 function initMap() {
 
   const bm = _mapConfig.basemaps?.[_mapConfig.defaultBasemap] ?? {
@@ -88,20 +95,18 @@ function initMap() {
   map.getCanvas().addEventListener('mouseleave', handleMapHoldEnd);
 
   map.on('styleimagemissing', (e) => {
-    if (e.id === 'viewpoint-icon' && !map.hasImage('viewpoint-icon')) {
-      map.loadImage('./images/viewpoint.png', (err, img) => {
-        if (!err && img && !map.hasImage('viewpoint-icon')) map.addImage('viewpoint-icon', img);
-      });
+    if (e.id === 'viewpoint-icon' && _viewpointImageData && !map.hasImage('viewpoint-icon')) {
+      map.addImage('viewpoint-icon', _viewpointImageData);
     }
   });
 
   map.on('load', () => {
-    map.loadImage('./images/viewpoint.png', (err, img) => {
-      if (!err && img) map.addImage('viewpoint-icon', img);
-      addAllLayers();
-      document.getElementById('loading-screen').style.display = 'none';
-      initScrollytelling();
-    });
+    if (_viewpointImageData && !map.hasImage('viewpoint-icon')) {
+      map.addImage('viewpoint-icon', _viewpointImageData);
+    }
+    addAllLayers();
+    document.getElementById('loading-screen').style.display = 'none';
+    initScrollytelling();
   });
 }
 
