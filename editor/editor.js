@@ -1506,7 +1506,6 @@ function saveCurrentChapter() {
     // ch.layers is maintained live by the chapter layers UI — no DOM re-read needed
 
     renderChaptersList();
-    showNotification('Chapter saved!');
 }
 
 function reassignChapterIds() {
@@ -1520,7 +1519,6 @@ function saveAllChanges() {
     if (typeof cloudSave === 'function') {
         cloudSave();
     } else {
-        showNotification('All changes saved — use Export to download configs.');
     }
 }
 
@@ -2068,7 +2066,7 @@ async function exportFolder(btn) {
             const isCoreLayer = entry.remoteUrl && entry.remoteUrl.includes('mod-foundation.github.io');
             if (entry.category === 'raster') {
                 const rasterUrl = isCoreLayer
-                    ? `cog://${entry.remoteUrl.replace(/^https?:\/\//, '')}`
+                    ? `cog://${entry.remoteUrl}`
                     : `cog://./layers/geotiff/${entry.filename}`;
                 sources[entry.sourceId] = { type: 'raster', url: rasterUrl, tileSize: 256 };
                 layers.push({ id: entry.id, type: 'raster', source: entry.sourceId, paint: { 'raster-opacity': 1 } });
@@ -2125,7 +2123,6 @@ async function exportFolder(btn) {
         a.click();
         URL.revokeObjectURL(a.href);
 
-        showNotification('Folder downloaded!');
     } catch (err) {
         console.error('[exportFolder]', err);
         showNotification('Export failed — see console for details.', true);

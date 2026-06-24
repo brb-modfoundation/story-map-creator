@@ -179,10 +179,12 @@ serve(async (req) => {
 
     // ── Fetch static viewer templates from GitHub ────────────
     const RAW = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${BRANCH}`;
-    const [indexHtml, viewerJs, styleCSS] = await Promise.all([
+    const [indexHtml, viewerJs, styleCSS, viewpointPng, quoteIconPng] = await Promise.all([
       fetch(`${RAW}/standalone/index.html`).then(r => r.text()),
       fetch(`${RAW}/standalone/viewer.js`).then(r => r.text()),
       fetch(`${RAW}/viewer/story-style.css`).then(r => r.text()),
+      fetch(`${RAW}/images/viewpoint.png`).then(r => r.arrayBuffer()).then(b => new Uint8Array(b)),
+      fetch(`${RAW}/images/quote-icon.png`).then(r => r.arrayBuffer()).then(b => new Uint8Array(b)),
     ]);
 
     // ── Build file list for GitHub commit ────────────────────
@@ -196,6 +198,9 @@ serve(async (req) => {
       [`${base}/storyConfig.js`]:   { content: storyConfigJs,  binary: false },
       [`${base}/mapConfig.js`]:     { content: mapConfigJs,    binary: false },
     };
+
+    filesToPush[`${base}/images/viewpoint.png`]  = { content: viewpointPng,  binary: true };
+    filesToPush[`${base}/images/quote-icon.png`] = { content: quoteIconPng, binary: true };
 
     for (const [name, bytes] of Object.entries(imageFiles)) {
       filesToPush[`${base}/images/${name}`] = { content: bytes, binary: true };

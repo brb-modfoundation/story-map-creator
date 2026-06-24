@@ -134,10 +134,6 @@ function addAllLayers() {
       if (t === 'raster') layerWithTransition.paint['raster-opacity-transition'] = { duration: 1500 };
       else if (t === 'line')   layerWithTransition.paint['line-opacity-transition']   = { duration: 1500 };
       else if (t === 'fill')   layerWithTransition.paint['fill-opacity-transition']   = { duration: 1500 };
-      else if (t === 'symbol') {
-        layerWithTransition.paint['icon-opacity-transition'] = { duration: 1500 };
-        layerWithTransition.paint['text-opacity-transition'] = { duration: 1500 };
-      }
       map.addLayer(layerWithTransition);
     });
     _mapConfig.layers.forEach(l => {
@@ -151,8 +147,6 @@ function addAllLayers() {
     const layerConfig = (_mapConfig.layers ?? []).find(l => l.id === meta.id);
     if (!layerConfig || !map.getSource(meta.sourceId) || map.getLayer(meta.id)) return;
     const layerWithTransition = { ...layerConfig, paint: { ...(layerConfig.paint ?? {}) } };
-    layerWithTransition.paint['text-opacity-transition'] = { duration: 1500 };
-    layerWithTransition.paint['icon-opacity-transition'] = { duration: 1500 };
     map.addLayer(layerWithTransition);
     map.setLayoutProperty(meta.id, 'visibility', 'none');
   });

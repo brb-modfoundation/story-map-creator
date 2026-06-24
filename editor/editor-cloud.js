@@ -95,7 +95,6 @@ window._cloudActive = true;   // tells editor.js not to auto-dismiss the loading
 // ── Cloud Save ────────────────────────────────────────────
 window.cloudSave = async () => {
   if (!MAP_ID || !currentUser) {
-    if (typeof window.showNotification === 'function') window.showNotification('Not connected to cloud — use Export to download configs.');
     return;
   }
 
@@ -131,7 +130,6 @@ window.cloudSave = async () => {
     let msg = 'Saved to cloud ✓';
     if (embedded.length) msg += ` (${embedded.length} layer(s) embedded directly — cloud upload had failed)`;
     if (lostRasters.length) msg += ` — WARNING: ${lostRasters.length} raster(s) not in cloud storage and will not appear in the published map`;
-    if (typeof window.showNotification === 'function') window.showNotification(msg, lostRasters.length > 0);
   }
 };
 
@@ -145,7 +143,6 @@ window.cloudTogglePublish = async () => {
   if (newState) {
     // Publishing: push to GitHub first, then mark published in Supabase
     btn.textContent = '⏳ Publishing…';
-    if (typeof window.showNotification === 'function') window.showNotification('Publishing to GitHub…');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/publish-to-github`, {
@@ -182,7 +179,6 @@ window.cloudTogglePublish = async () => {
   } else {
     // Unpublishing: remove from GitHub then update Supabase
     btn.textContent = '⏳ Unpublishing…';
-    if (typeof window.showNotification === 'function') window.showNotification('Removing from GitHub…');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/publish-to-github`, {
@@ -204,7 +200,6 @@ window.cloudTogglePublish = async () => {
 
       currentMap.published = false;
       updatePublishButton(false);
-      if (typeof window.showNotification === 'function') window.showNotification('Map unpublished.');
     } catch (e) {
       if (typeof window.showNotification === 'function') window.showNotification('Unpublish failed: ' + e.message, true);
       updatePublishButton(true);
