@@ -89,10 +89,18 @@ function initMap() {
   map.on('load', () => {
     map.loadImage('./images/viewpoint.png', (err, img) => {
       if (!err && img) map.addImage('viewpoint-icon', img);
-      addAllLayers();
-      document.getElementById('loading-screen').style.display = 'none';
-      initScrollytelling();
     });
+    // styleimagemissing fires if viewpoint-icon isn't ready yet when a tile renders
+    map.on('styleimagemissing', (e) => {
+      if (e.id === 'viewpoint-icon') {
+        map.loadImage('./images/viewpoint.png', (err, img) => {
+          if (!err && img && !map.hasImage('viewpoint-icon')) map.addImage('viewpoint-icon', img);
+        });
+      }
+    });
+    addAllLayers();
+    document.getElementById('loading-screen').style.display = 'none';
+    initScrollytelling();
   });
 }
 
