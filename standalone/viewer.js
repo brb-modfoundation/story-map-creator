@@ -98,10 +98,10 @@ function initMap() {
   map.on('load', () => {
     map.loadImage('./images/viewpoint.png', (err, img) => {
       if (!err && img) map.addImage('viewpoint-icon', img);
+      addAllLayers();
+      document.getElementById('loading-screen').style.display = 'none';
+      initScrollytelling();
     });
-    addAllLayers();
-    document.getElementById('loading-screen').style.display = 'none';
-    initScrollytelling();
   });
 }
 
