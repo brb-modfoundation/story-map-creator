@@ -160,13 +160,23 @@ serve(async (req) => {
       }
     }
 
+    // Embed viewpoint PNG as base64 so the standalone viewer can addImage
+    // synchronously without any fetch — avoids the worker thread timing race.
+    let viewpointB64 = '';
+    {
+      let bin = '';
+      for (let i = 0; i < viewpointPng.length; i++) bin += String.fromCharCode(viewpointPng[i]);
+      viewpointB64 = btoa(bin);
+    }
+
     const exportMapConfig = {
-      initialView:     mapConfig?.initialView     ?? { center: [0, 20], zoom: 2 },
-      defaultBasemap:  mapConfig?.defaultBasemap  ?? 'satellite',
-      basemaps:        mapConfig?.basemaps        ?? {},
+      initialView:       mapConfig?.initialView     ?? { center: [0, 20], zoom: 2 },
+      defaultBasemap:    mapConfig?.defaultBasemap  ?? 'satellite',
+      basemaps:          mapConfig?.basemaps        ?? {},
       sources,
       layers,
-      userLayersMeta:  userMeta,
+      userLayersMeta:    userMeta,
+      viewpointIconB64:  viewpointB64,
     };
 
     const mapConfigJs = `const MAPBOX_TOKEN = '${mapConfig?.basemaps?.satellite?.tiles?.[0]?.match(/access_token=([^&]+)/)?.[1] ?? 'YOUR_MAPBOX_TOKEN_HERE'}';\n\nconst mapConfig = ${JSON.stringify(exportMapConfig, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) { module.exports = mapConfig; }\n`;

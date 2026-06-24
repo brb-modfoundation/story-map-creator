@@ -24,11 +24,11 @@ if (typeof storyConfig === 'undefined' || typeof mapConfig === 'undefined') {
 }
 
 let _viewpointImageData = null;
-fetch('https://raw.githubusercontent.com/brb-modfoundation/story-map-creator/main/images/viewpoint.png')
-  .then(r => r.blob())
-  .then(blob => createImageBitmap(blob))
-  .then(bmp => { _viewpointImageData = bmp; })
-  .catch(() => {});
+if (typeof mapConfig !== 'undefined' && mapConfig.viewpointIconB64) {
+  const _vpImg = new Image();
+  _vpImg.onload = () => { _viewpointImageData = _vpImg; };
+  _vpImg.src = `data:image/png;base64,${mapConfig.viewpointIconB64}`;
+}
 
 function initMap() {
 
