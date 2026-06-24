@@ -155,7 +155,14 @@ function addAllLayers() {
   // Additional sources from map config
   if (_mapConfig.sources) {
     Object.entries(_mapConfig.sources).forEach(([sourceId, sourceConfig]) => {
-      if (!map.getSource(sourceId)) map.addSource(sourceId, sourceConfig);
+      if (!map.getSource(sourceId)) {
+        // Repair legacy COG URLs that were saved without https:// (cog://domain/... → cog://https://domain/...)
+        if (sourceConfig.type === 'raster' && typeof sourceConfig.url === 'string' &&
+            sourceConfig.url.startsWith('cog://') && !sourceConfig.url.startsWith('cog://https://') && !sourceConfig.url.startsWith('cog://http://')) {
+          sourceConfig = { ...sourceConfig, url: sourceConfig.url.replace('cog://', 'cog://https://') };
+        }
+        map.addSource(sourceId, sourceConfig);
+      }
     });
   }
 
