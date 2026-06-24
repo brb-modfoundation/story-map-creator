@@ -160,29 +160,6 @@ serve(async (req) => {
       }
     }
 
-    // Embed viewpoint PNG as base64 so the standalone viewer can addImage
-    // synchronously without any fetch — avoids the worker thread timing race.
-    const viewpointB64 = (() => {
-      const CHUNK = 8192;
-      let bin = '';
-      for (let i = 0; i < viewpointPng.length; i += CHUNK) {
-        bin += String.fromCharCode(...viewpointPng.subarray(i, i + CHUNK));
-      }
-      return btoa(bin);
-    })();
-
-    const exportMapConfig = {
-      initialView:       mapConfig?.initialView     ?? { center: [0, 20], zoom: 2 },
-      defaultBasemap:    mapConfig?.defaultBasemap  ?? 'satellite',
-      basemaps:          mapConfig?.basemaps        ?? {},
-      sources,
-      layers,
-      userLayersMeta:    userMeta,
-      viewpointIconB64:  viewpointB64,
-    };
-
-    const mapConfigJs = `const MAPBOX_TOKEN = '${mapConfig?.basemaps?.satellite?.tiles?.[0]?.match(/access_token=([^&]+)/)?.[1] ?? 'YOUR_MAPBOX_TOKEN_HERE'}';\n\nconst mapConfig = ${JSON.stringify(exportMapConfig, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) { module.exports = mapConfig; }\n`;
-
     // ── Download user-uploaded vector layers ─────────────────
     const layerFiles: Record<string, Uint8Array> = {};  // filename → bytes
     for (const m of userMeta) {
@@ -210,6 +187,26 @@ serve(async (req) => {
 
     // ── Build file list for GitHub commit ────────────────────
     const base = `published/${slug}`;
+    const viewpointB64 = (() => {
+      const CHUNK = 8192;
+      let bin = '';
+      for (let i = 0; i < viewpointPng.length; i += CHUNK) {
+        bin += String.fromCharCode(...viewpointPng.subarray(i, i + CHUNK));
+      }
+      return btoa(bin);
+    })();
+
+    const exportMapConfig = {
+      initialView:      mapConfig?.initialView    ?? { center: [0, 20], zoom: 2 },
+      defaultBasemap:   mapConfig?.defaultBasemap ?? 'satellite',
+      basemaps:         mapConfig?.basemaps       ?? {},
+      sources,
+      layers,
+      userLayersMeta:   userMeta,
+      viewpointIconB64: viewpointB64,
+    };
+    const mapConfigJs = `const MAPBOX_TOKEN = '${mapConfig?.basemaps?.satellite?.tiles?.[0]?.match(/access_token=([^&]+)/)?.[1] ?? 'YOUR_MAPBOX_TOKEN_HERE'}';\n\nconst mapConfig = ${JSON.stringify(exportMapConfig, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) { module.exports = mapConfig; }\n`;
+
     // CSS uses ../images/ (correct for viewer/ path) — rewrite to ./images/ for standalone published layout
     const patchedStyleCSS = styleCSS.replace(/url\(['"]?\.\.\/images\//g, "url('./images/");
 
